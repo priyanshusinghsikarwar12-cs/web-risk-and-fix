@@ -7,8 +7,11 @@ from app.scanners.dns import check_dns_records
 from app.scanners.technologies import detect_technologies
 from datetime import datetime
 from app.scanners.health import check_website_health
+from app.utils.domain import clean_domain
+from app.services.fix_guidance import add_fix_guidance
 
 def run_full_scan(domain: str):
+    domain = clean_domain(domain)
     connectivity = check_connectivity(domain)
     health = check_website_health(domain)
 
@@ -34,7 +37,10 @@ def run_full_scan(domain: str):
         ssl_certificate,
         dns_records,
     )
-
+    recommendations = add_fix_guidance(
+        recommendations,
+        technologies,
+        )
     return {
         "domain": domain,
         "overall_status": risk["overall_status"],
