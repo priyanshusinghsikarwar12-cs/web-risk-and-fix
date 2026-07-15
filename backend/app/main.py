@@ -1,9 +1,16 @@
-from fastapi import FastAPI
-from app.services.scan_engine import run_full_scan
-from app.scanners.headers import check_security_headers
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.scanners.headers import check_security_headers
+from app.services.scan_engine import run_full_scan
+from app.utils.domain import (
+    DomainValidationError,
+    validate_public_domain,
+)
+
+
 app = FastAPI()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -20,9 +27,24 @@ def home():
 
 @app.get("/scan")
 def scan(domain: str):
-    return run_full_scan(domain)
+    try:
+        return run_full_scan(domain)
+
+    except DomainValidationError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        ) from error
 
 
 @app.get("/headers")
 def headers(domain: str):
-    return check_security_headers(domain)
+    try:
+        safe_domain = validate_public_domain(domain)
+        return check_security_headers(safe_domain)
+
+    except DomainValidationError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        ) from error

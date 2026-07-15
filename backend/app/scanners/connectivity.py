@@ -1,4 +1,5 @@
 import requests
+from app.utils.safe_http import safe_get
 
 
 def check_connectivity(domain: str):
@@ -11,7 +12,7 @@ def check_connectivity(domain: str):
         )
 
         url = f"https://{clean_domain}"
-        response = requests.get(url, timeout=10)
+        response = safe_get(url, timeout=10)
 
         return {
             "domain": clean_domain,

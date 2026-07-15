@@ -1,65 +1,166 @@
 import requests
+from app.utils.safe_http import safe_get
+
+
+def create_detection(
+    name,
+    value,
+    confidence,
+    evidence,
+    status="Detected",
+):
+    return {
+        "name": name,
+        "status": status,
+        "value": value,
+        "confidence": confidence,
+        "evidence": evidence,
+    }
+
+
+def detect_technologies_from_evidence(headers, html):
+    normalized_headers = {
+        str(name).lower(): str(value)
+        for name, value in headers.items()
+    }
+
+    normalized_html = html.lower()
+    detections = []
+
+    # Cloudflare detection
+    cloudflare_evidence = []
+
+    if "cf-ray" in normalized_headers:
+        cloudflare_evidence.append(
+            "Cloudflare Cf-Ray response header"
+        )
+
+    if "cf-cache-status" in normalized_headers:
+        cloudflare_evidence.append(
+            "Cloudflare cache response header"
+        )
+
+    server = normalized_headers.get("server", "")
+
+    if "cloudflare" in server.lower():
+        cloudflare_evidence.append(
+            "Server header identifies Cloudflare"
+        )
+
+    if cloudflare_evidence:
+        detections.append(
+            create_detection(
+                name="Traffic Protection Service",
+                value="Cloudflare",
+                confidence="High",
+                evidence=cloudflare_evidence,
+            )
+        )
+
+    # WordPress detection
+    wordpress_evidence = []
+
+    if "wp-content" in normalized_html:
+        wordpress_evidence.append(
+            "HTML references the default wp-content path"
+        )
+
+    if "wp-includes" in normalized_html:
+        wordpress_evidence.append(
+            "HTML references the wp-includes path"
+        )
+
+    if (
+        'name="generator"' in normalized_html
+        and "wordpress" in normalized_html
+    ):
+        wordpress_evidence.append(
+            "HTML generator metadata identifies WordPress"
+        )
+
+    if wordpress_evidence:
+        confidence = (
+            "High"
+            if len(wordpress_evidence) >= 2
+            else "Medium"
+        )
+
+        detections.append(
+            create_detection(
+                name="Website Platform",
+                value="WordPress",
+                confidence=confidence,
+                evidence=wordpress_evidence,
+            )
+        )
+
+    # A Server header is only a weak signal because it may
+    # describe a proxy rather than the origin web server.
+    if server and "cloudflare" not in server.lower():
+        detections.append(
+            create_detection(
+                name="Server Header",
+                value=server,
+                confidence="Low",
+                evidence=[
+                    "The website publicly returned a Server header"
+                ],
+                status="Observed",
+            )
+        )
+
+    if not detections:
+        detections.append(
+            create_detection(
+                name="Website Technology",
+                value=(
+                    "WebShield found insufficient public evidence "
+                    "to identify the technology."
+                ),
+                confidence="None",
+                evidence=[],
+                status="Not Detected",
+            )
+        )
+
+    return detections
 
 
 def detect_technologies(domain: str):
     url = f"https://{domain}"
-    response = requests.get(url, timeout=10)
 
-    headers = response.headers
-    html = response.text.lower()
+    try:
+        response = safe_get(
+            url,
+            timeout=10,
+           
+        )
 
-    technologies = []
+        detections = detect_technologies_from_evidence(
+            response.headers,
+            response.text,
+        )
 
-    server = headers.get("Server")
-    if server:
-        technologies.append({
-            "name": "Web Server",
-            "status": "Detected",
-            "value": server,
-        })
+        return {
+            "name": "Technology Detection",
+            "url": response.url,
+            "checks": detections,
+        }
 
-    if "wp-content" in html or "wordpress" in html:
-        technologies.append({
-            "name": "WordPress",
-            "status": "Detected",
-            "value": "WordPress indicators found",
-        })
-
-    if "shopify" in html:
-        technologies.append({
-            "name": "Shopify",
-            "status": "Detected",
-            "value": "Shopify indicators found",
-        })
-    if "drupal" in html:
-        technologies.append({
-            "name": "Drupal",
-            "status": "Detected",
-            "value": "Drupal indicators found",
-    })
-
-    if "joomla" in html:
-        technologies.append({
-            "name": "Joomla",
-            "status": "Detected",
-            "value": "Joomla indicators found",
-    })
-
-    if "wix" in html:
-       technologies.append({
-          "name": "Wix",
-          "status": "Detected",
-          "value": "Wix indicators found",
-    })    
-
-    if not technologies:
-        technologies.append({
-            "name": "Website Technology",
-            "status": "Not Detected",
-            "value": "WebShield could not identify the website technology yet.",
-        })
-
-    return {
-        "name": "Technology Detection",
-        "checks": technologies,
-    }
+    except requests.RequestException as error:
+        return {
+            "name": "Technology Detection",
+            "url": url,
+            "checks": [
+                create_detection(
+                    name="Website Technology",
+                    value=(
+                        "Technology detection could not be completed."
+                    ),
+                    confidence="None",
+                    evidence=[],
+                    status="Unavailable",
+                )
+            ],
+            "error": str(error),
+        }

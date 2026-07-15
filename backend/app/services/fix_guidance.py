@@ -114,6 +114,9 @@ def get_detected_technology(technologies: dict):
         return None
 
     for check in technologies.get("checks", []):
+        if check.get("confidence") not in {"High", "Medium"}:
+            continue
+
         value = str(check.get("value", "")).lower()
 
         for technology in TECHNOLOGY_FIXES:

@@ -178,9 +178,19 @@ function App() {
               </div>
 
               <div>
-                <h3>{report.overall_status}</h3>
-                <p>{report.summary}</p>
-              </div>
+  <span
+    className={
+      report.scan_status === "Partial"
+        ? "scan-status scan-partial"
+        : "scan-status scan-complete"
+    }
+  >
+    {report.scan_status} scan
+  </span>
+
+  <h3>{report.overall_status}</h3>
+  <p>{report.summary}</p>
+</div>
             </div>
 
             <div className="recommendations">
@@ -266,9 +276,11 @@ function App() {
                 <p>{report.ssl_certificate?.message}</p>
 
                 <strong>
-                  {report.ssl_certificate?.days_left !== undefined
-                    ? `${report.ssl_certificate.days_left} days left`
-                    : "Certificate needs review"}
+                  {Number.isInteger(report.ssl_certificate?.days_left)
+    ? `${report.ssl_certificate.days_left} days left`
+    : report.ssl_certificate?.status === "Unavailable"
+      ? "Check unavailable"
+      : "Certificate needs review"}
                 </strong>
               </div>
 
@@ -277,9 +289,9 @@ function App() {
 
                 <p>
                   {report.dns_records?.checks?.filter(
-                    (item) => item.status === "Found"
-                  ).length || 0}{" "}
-                  checks found
+    (item) => item.passed === true
+  ).length || 0}{" "}
+  configured checks
                 </p>
               </div>
             </div>
@@ -322,10 +334,12 @@ function App() {
 
                     <span
                       className={
-                        check.status === "Found"
-                          ? "status-protected"
-                          : "status-attention"
-                      }
+  check.passed === true
+    ? "status-protected"
+    : check.passed === false
+      ? "status-attention"
+      : "status-neutral"
+}
                     >
                       {check.status}
                     </span>
