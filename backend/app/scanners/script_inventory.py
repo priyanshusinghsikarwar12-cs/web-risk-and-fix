@@ -1,12 +1,281 @@
+import re
 from html.parser import HTMLParser
-from urllib.parse import urljoin, urlparse
+from urllib.parse import (
+    unquote,
+    urljoin,
+    urlparse,
+)
 
 import requests
 
 from app.utils.safe_http import safe_get
+from urllib.parse import (
+    parse_qs,
+    unquote,
+    urljoin,
+    urlparse,
+)
 
 
 MAX_DISPLAYED_SCRIPTS = 100
+
+VERSION_PATTERN = (
+    r"(?P<version>"
+    r"\d+\.\d+(?:\.\d+)?"
+    r"(?:[-+][0-9a-zA-Z.-]+)?"
+    r")"
+)
+
+
+KNOWN_LIBRARY_PATTERNS = [
+    (
+        "jQuery",
+        r"(?:^|[/_.-])jquery"
+        r"(?:\.min)?[-.]v?"
+        + VERSION_PATTERN,
+    ),
+    (
+        "Bootstrap",
+        r"(?:^|[/_.-])bootstrap"
+        r"(?:\.bundle)?(?:\.min)?[-.]v?"
+        + VERSION_PATTERN,
+    ),
+    (
+        "Lodash",
+        r"(?:^|[/_.-])lodash"
+        r"(?:\.min)?[-.]v?"
+        + VERSION_PATTERN,
+    ),
+    (
+        "Moment.js",
+        r"(?:^|[/_.-])moment"
+        r"(?:\.min)?[-.]v?"
+        + VERSION_PATTERN,
+    ),
+    (
+        "Axios",
+        r"(?:^|[/_.-])axios"
+        r"(?:\.min)?[-.]v?"
+        + VERSION_PATTERN,
+    ),
+    (
+        "React DOM",
+        r"(?:^|[/_.-])react-dom"
+        r"(?:\.production\.min)?[-.]v?"
+        + VERSION_PATTERN,
+    ),
+    (
+        "React",
+        r"(?:^|[/_.-])react"
+        r"(?:\.production\.min)?[-.]v?"
+        + VERSION_PATTERN,
+    ),
+    (
+        "Vue",
+        r"(?:^|[/_.-])vue"
+        r"(?:\.runtime)?(?:\.min)?[-.]v?"
+        + VERSION_PATTERN,
+    ),
+    (
+        "Angular",
+        r"(?:^|[/_.-])angular"
+        r"(?:\.min)?[-.]v?"
+        + VERSION_PATTERN,
+    ),
+]
+
+KNOWN_LIBRARY_NAMES = [
+    (
+        "jQuery UI",
+        r"(?:^|[/_.-])jquery-ui"
+        r"(?:\.min)?\.js$",
+    ),
+    (
+        "jQuery Migrate",
+        r"(?:^|[/_.-])jquery-migrate"
+        r"(?:\.min)?\.js$",
+    ),
+    (
+        "jQuery",
+        r"(?:^|[/_.-])jquery"
+        r"(?:-core)?(?:\.min)?\.js$",
+    ),
+    (
+        "Bootstrap",
+        r"(?:^|[/_.-])bootstrap"
+        r"(?:\.bundle)?(?:\.min)?\.js$",
+    ),
+    (
+        "Lodash",
+        r"(?:^|[/_.-])lodash"
+        r"(?:\.min)?\.js$",
+    ),
+    (
+        "Moment.js",
+        r"(?:^|[/_.-])moment"
+        r"(?:\.min)?\.js$",
+    ),
+    (
+        "Axios",
+        r"(?:^|[/_.-])axios"
+        r"(?:\.min)?\.js$",
+    ),
+    (
+        "React DOM",
+        r"(?:^|[/_.-])react-dom"
+        r"(?:\.production\.min)?\.js$",
+    ),
+    (
+        "React",
+        r"(?:^|[/_.-])react"
+        r"(?:\.production\.min)?\.js$",
+    ),
+    (
+        "Vue",
+        r"(?:^|[/_.-])vue"
+        r"(?:\.runtime)?(?:\.min)?\.js$",
+    ),
+    (
+        "Angular",
+        r"(?:^|[/_.-])angular"
+        r"(?:\.min)?\.js$",
+    ),
+]    
+
+
+
+def library_result(
+    name,
+    version,
+    confidence,
+    evidence,
+):
+    return {
+        "name": name,
+        "version": version,
+        "confidence": confidence,
+        "evidence": evidence,
+    }
+
+
+def detect_library_from_url(script_url):
+    parsed_url = urlparse(script_url)
+    host = (parsed_url.hostname or "").lower()
+    path = unquote(parsed_url.path)
+
+    if host.endswith("cdn.jsdelivr.net"):
+        match = re.search(
+            r"/npm/"
+            r"(?P<package>(?:@[^/]+/)?[^/@]+)"
+            r"@"
+            + VERSION_PATTERN
+            + r"(?:/|$)",
+            path,
+            flags=re.IGNORECASE,
+        )
+
+        if match:
+            return library_result(
+                match.group("package"),
+                match.group("version"),
+                "High",
+                "Version declared in jsDelivr package URL",
+            )
+
+    if host == "unpkg.com":
+        match = re.search(
+            r"^/"
+            r"(?P<package>(?:@[^/]+/)?[^/@]+)"
+            r"@"
+            + VERSION_PATTERN
+            + r"(?:/|$)",
+            path,
+            flags=re.IGNORECASE,
+        )
+
+        if match:
+            return library_result(
+                match.group("package"),
+                match.group("version"),
+                "High",
+                "Version declared in unpkg package URL",
+            )
+
+    if host == "cdnjs.cloudflare.com":
+        match = re.search(
+            r"/ajax/libs/"
+            r"(?P<package>[^/]+)/"
+            + VERSION_PATTERN
+            + r"/",
+            path,
+            flags=re.IGNORECASE,
+        )
+
+        if match:
+            return library_result(
+                match.group("package"),
+                match.group("version"),
+                "High",
+                "Version declared in cdnjs package URL",
+            )
+
+    lowered_path = path.lower()
+
+    for library_name, pattern in KNOWN_LIBRARY_PATTERNS:
+        match = re.search(
+            pattern,
+            lowered_path,
+            flags=re.IGNORECASE,
+        )
+
+        if match:
+            return library_result(
+                library_name,
+                match.group("version"),
+                "Medium",
+                "Library name and version observed in filename",
+            )
+    query_values = parse_qs(parsed_url.query)
+    query_version = (
+        query_values.get("ver", [None])[0]
+        or query_values.get("version", [None])[0]
+        or query_values.get("v", [None])[0]
+    )
+
+    valid_query_version = None
+
+    if query_version and re.fullmatch(
+        r"\d+\.\d+(?:\.\d+)?"
+        r"(?:[-+][0-9a-zA-Z.-]+)?",
+        query_version,
+    ):
+        valid_query_version = query_version
+
+    for library_name, pattern in KNOWN_LIBRARY_NAMES:
+        if re.search(
+            pattern,
+            lowered_path,
+            flags=re.IGNORECASE,
+        ):
+            if valid_query_version:
+                return library_result(
+                    library_name,
+                    valid_query_version,
+                    "Low",
+                    (
+                        "Library filename observed; possible "
+                        "version found in URL query parameter"
+                    ),
+                )
+
+            return library_result(
+                library_name,
+                None,
+                "Low",
+                "Known library filename observed",
+            )            
+
+    return None
 
 
 def classify_script_host(page_host, script_host):
@@ -71,12 +340,16 @@ class ScriptInventoryParser(HTMLParser):
             self.page_host,
             parsed_url.hostname,
         )
+        detected_library = detect_library_from_url(
+            absolute_url
+        )        
 
         self.scripts.append({
             "name": parsed_url.hostname,
             "url": absolute_url,
             "host": parsed_url.hostname,
             "relationship": relationship,
+            "library": detected_library,
             "secure_transport": (
                 parsed_url.scheme.lower() == "https"
             ),
@@ -121,6 +394,11 @@ def analyze_script_inventory(
         for script in scripts
     )
 
+    detected_library_count = sum(
+        script["library"] is not None
+        for script in scripts
+    )    
+
     insecure_count = sum(
         not script["secure_transport"]
         for script in scripts
@@ -164,6 +442,7 @@ def analyze_script_inventory(
         "external_script_count": external_count,
         "inline_script_count": parser.inline_script_count,
         "insecure_script_count": insecure_count,
+        "detected_library_count": detected_library_count,
         "results_limited": (
             len(scripts) > MAX_DISPLAYED_SCRIPTS
         ),
@@ -199,6 +478,7 @@ def check_script_inventory(domain, response=None):
                 "external_script_count": 0,
                 "inline_script_count": 0,
                 "insecure_script_count": 0,
+                "detected_library_count": 0,
                 "results_limited": False,
                 "scope": "Initial homepage HTML only",
                 "score_eligible": False,
@@ -233,6 +513,11 @@ def check_script_inventory(domain, response=None):
             "insecure_script_count": (
                 result["insecure_script_count"]
             ),
+
+            "detected_library_count": (
+                result["detected_library_count"]
+    
+            ),
             "results_limited": result["results_limited"],
             "scope": "Initial homepage HTML only",
             "score_eligible": False,
@@ -252,6 +537,7 @@ def check_script_inventory(domain, response=None):
             "external_script_count": 0,
             "inline_script_count": 0,
             "insecure_script_count": 0,
+            "detected_library_count": 0,
             "results_limited": False,
             "scope": "Initial homepage HTML only",
             "score_eligible": False,

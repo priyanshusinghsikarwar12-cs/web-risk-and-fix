@@ -173,6 +173,24 @@ def test_full_scan_becomes_partial_when_scanner_fails(
     )  
 
     monkeypatch.setattr(
+        "app.services.scan_engine.check_privacy_signals",
+        lambda domain: {
+            "name": "Privacy and Consent Signals",
+            "domain": domain,
+            "url": f"https://{domain}",
+            "status": "Observed",
+            "message": (
+                "Privacy and consent signals were observed."
+            ),
+            "checks": [],
+            "privacy_link_count": 1,
+            "consent_signal_count": 1,
+            "scope": "Initial homepage HTML only",
+            "score_eligible": False,
+        },
+    )
+
+    monkeypatch.setattr(
         "app.services.scan_engine.check_script_inventory",
         lambda domain: {
             "name": "Script Inventory",
@@ -187,6 +205,7 @@ def test_full_scan_becomes_partial_when_scanner_fails(
             "external_script_count": 0,
             "inline_script_count": 0,
             "insecure_script_count": 0,
+            "detected_library_count": 0,
             "results_limited": False,
             "scope": "Initial homepage HTML only",
             "score_eligible": False,
@@ -205,7 +224,32 @@ def test_full_scan_becomes_partial_when_scanner_fails(
             "checks": [],
             "score_eligible": False,
         },
-    )    
+    ) 
+
+    monkeypatch.setattr(
+        "app.services.scan_engine.check_error_leakage",
+        lambda domain: {
+            "name": "Error Information Leakage",
+            "status": "Not Observed",
+            "message": (
+                "No obvious detailed errors were observed."
+            ),
+            "requested_url": (
+                f"https://{domain}/.well-known/"
+                f"webshield-missing-page-check"
+            ),
+            "final_url": (
+                f"https://{domain}/.well-known/"
+                f"webshield-missing-page-check"
+            ),
+            "status_code": 404,
+            "redirected": False,
+            "content_truncated": False,
+            "checks": [],
+            "scope": "One intentionally missing page only",
+            "score_eligible": False,
+        },
+    )
 
     monkeypatch.setattr(
         "app.services.scan_engine.check_dns_records",
@@ -294,3 +338,10 @@ def test_full_scan_becomes_partial_when_scanner_fails(
         report["reputation"]["status"]
         == "No Known Threats"
     )    
+
+    assert (
+        report["error_leakage"]["status"]
+        == "Not Observed"
+    )
+
+    assert report["privacy_signals"]["status"] == "Observed"

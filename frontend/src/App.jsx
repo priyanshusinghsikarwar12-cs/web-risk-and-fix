@@ -470,6 +470,14 @@ function App() {
     </div>
 
     <div>
+  <strong>
+    {report.script_inventory
+      ?.detected_library_count || 0}
+  </strong>
+  <span>Recognized libraries</span>
+</div>
+
+    <div>
       <strong>
         {report.script_inventory?.inline_script_count || 0}
       </strong>
@@ -493,12 +501,28 @@ function App() {
               <strong>{script.host}</strong>
 
               <p>{script.message}</p>
-
+              
               <code className="script-resource-url">
-                {script.url}
-              </code>
+  {script.url}
+</code>
 
-              <div className="script-details">
+{script.library && (
+  <div className="detected-library">
+    <strong>{script.library.name}</strong>
+
+    <span>
+      {script.library.version
+        ? `Version ${script.library.version}`
+        : "Version not exposed"}
+    </span>
+
+    <span>
+      {script.library.confidence} confidence
+    </span>
+  </div>
+)}
+
+<div className="script-details">
                 <span>
                   {script.secure_transport
                     ? "HTTPS"
@@ -616,6 +640,143 @@ function App() {
   </div>
 </div>
 
+{report.error_leakage && (
+  <div className="report-section">
+    <h3>Error Information Exposure</h3>
+
+    <p className="section-summary">
+      {report.error_leakage.message}
+    </p>
+
+    <div className="protection-list">
+      <div className="protection-item">
+        <div>
+          <strong>Missing-page safety check</strong>
+
+          <p>
+            WebShield safely requested one nonexistent page to see
+            whether the website exposed debugging or technical details.
+          </p>
+
+          <div className="public-file-details">
+            <span>
+              HTTP status:{" "}
+              {report.error_leakage.status_code ?? "Unavailable"}
+            </span>
+
+            <span>
+              {report.error_leakage.redirected
+                ? "Request was redirected"
+                : "No redirect observed"}
+            </span>
+
+            <span>{report.error_leakage.scope}</span>
+          </div>
+        </div>
+
+        <span
+          className={
+            report.error_leakage.status === "Not Observed"
+              ? "status-protected"
+              : report.error_leakage.status === "Inconclusive"
+                ? "status-observed"
+                : "status-attention"
+          }
+        >
+          {report.error_leakage.status}
+        </span>
+      </div>
+
+      {report.error_leakage.checks?.map((check, index) => (
+        <div
+          className="protection-item"
+          key={`${check.name || "finding"}-${index}`}
+        >
+          <div>
+            <strong>
+              {check.name || check.category || "Possible exposure"}
+            </strong>
+
+            <p>
+              {check.message ||
+                "The tested error response exposed technical information."}
+            </p>
+          </div>
+
+          <span className="status-attention">
+            {check.status || "Review"}
+          </span>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+
+{report.privacy_signals && (
+  <div className="report-section">
+    <h3>Privacy and Cookie Consent</h3>
+
+    <p className="section-summary">
+      {report.privacy_signals.message}
+    </p>
+
+    <div className="protection-list">
+      {report.privacy_signals.checks?.map((check) => (
+        <div
+          className="protection-item"
+          key={check.name}
+        >
+          <div>
+            <strong>{check.name}</strong>
+            <p>{check.message}</p>
+
+            {check.links?.length > 0 && (
+              <div className="privacy-signal-details">
+                {check.links.map((link) => (
+                  <a
+                    key={link.url}
+                    href={link.url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {link.text || "View privacy page"}
+                  </a>
+                ))}
+              </div>
+            )}
+
+            {check.evidence?.length > 0 && (
+              <div className="privacy-signal-details">
+                {check.evidence.map((evidence) => (
+                  <span key={evidence}>
+                    {evidence}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <span
+            className={
+              check.status === "Observed"
+                ? "status-protected"
+                : check.status === "Not Observed"
+                  ? "status-observed"
+                  : "status-attention"
+            }
+          >
+            {check.status}
+          </span>
+        </div>
+      ))}
+    </div>
+
+    <p className="scope-note">
+      Scope: {report.privacy_signals.scope}. This is an
+      informational signal check, not a legal compliance audit.
+    </p>
+  </div>
+)}
               <div className="status-card">
                 <h3>Domain Setup</h3>
 

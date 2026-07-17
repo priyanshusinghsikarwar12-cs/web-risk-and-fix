@@ -21,12 +21,19 @@ from app.scanners.reputation import (
 )
 from app.scanners.tls_protocols import check_tls_protocols
 from app.scanners.mixed_content import check_mixed_content
+from app.scanners.error_leakage import (
+    check_error_leakage,
+)
+from app.scanners.privacy_signals import (
+    check_privacy_signals,
+)
 from app.scanners.public_files import (
     check_public_security_files,
 )
 from app.scanners.script_inventory import (
     check_script_inventory,
 )
+
 
 
 logger = logging.getLogger(__name__)
@@ -167,8 +174,10 @@ def run_full_scan(
             "technologies": None,
             "reputation": None,
             "mixed_content": None,
+            "privacy_signals": None,
             "script_inventory": None,
             "public_security_files": None,
+            "error_leakage": None,
             "recommendations": [],
             "scan_time": datetime.now().strftime(
                 "%Y-%m-%d %H:%M:%S"
@@ -258,7 +267,34 @@ def run_full_scan(
         },
     )
     if failure:
-        failures.append(failure)    
+        failures.append(failure)  
+    privacy_signals, failure = run_scanner(
+        "Privacy and Consent Signals",
+        bind_homepage_response(
+            check_privacy_signals,
+            homepage_response,
+        ),
+        domain,
+        {
+            "name": "Privacy and Consent Signals",
+            "domain": domain,
+            "url": f"https://{domain}",
+            "status": "Unavailable",
+            "message": (
+                "The privacy and consent signal check "
+                "could not be completed."
+            ),
+            "checks": [],
+            "privacy_link_count": 0,
+            "consent_signal_count": 0,
+            "scope": "Initial homepage HTML only",
+            "score_eligible": False,
+        },
+    )
+
+    if failure:
+        failures.append(failure)
+
 
     script_inventory, failure = run_scanner(
         "Script Inventory",
@@ -278,6 +314,7 @@ def run_full_scan(
             "checks": [],
             "total_script_files": 0,
             "external_script_count": 0,
+            "detected_library_count": 0,
             "inline_script_count": 0,
             "insecure_script_count": 0,
             "results_limited": False,
@@ -305,7 +342,34 @@ def run_full_scan(
     )   
 
     if failure:
-        failures.append(failure)               
+        failures.append(failure) 
+    error_leakage, failure = run_scanner(
+        "Error Information Leakage",
+        check_error_leakage,
+        domain,
+        {
+            "name": "Error Information Leakage",
+            "status": "Unavailable",
+            "message": (
+                "The error-information check could not "
+                "be completed."
+            ),
+            "requested_url": (
+                f"https://{domain}/.well-known/"
+                f"webshield-missing-page-check"
+            ),
+            "final_url": None,
+            "status_code": None,
+            "redirected": None,
+            "content_truncated": False,
+            "checks": [],
+            "scope": "One intentionally missing page only",
+            "score_eligible": False,
+        },
+    )
+
+    if failure:
+        failures.append(failure)                      
 
     dns_records, failure = run_scanner(
         "Domain Setup",
@@ -485,6 +549,7 @@ def run_full_scan(
         "tls_protocols": tls_protocols,
         "mixed_content": mixed_content,
         "dns_records": dns_records,
+        "privacy_signals": privacy_signals,
         "dkim": dkim,
         "domain_registration": domain_registration,
         "technologies": technologies,
@@ -492,6 +557,7 @@ def run_full_scan(
         "reputation": reputation,
         "script_inventory": script_inventory,
         "public_security_files": public_security_files,
+        "error_leakage": error_leakage,
         "scan_time": datetime.now().strftime(
             "%Y-%m-%d %H:%M:%S"
         ),
