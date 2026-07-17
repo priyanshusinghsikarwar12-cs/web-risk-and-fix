@@ -7,6 +7,10 @@ from app.utils.domain import (
     DomainValidationError,
     validate_public_domain,
 )
+from app.scanners.dkim import (
+    DKIMSelectorError,
+    clean_selector,
+)
 
 
 app = FastAPI()
@@ -26,11 +30,26 @@ def home():
 
 
 @app.get("/scan")
-def scan(domain: str):
+def scan(
+    domain: str,
+    dkim_selector: str | None = None,
+):
     try:
-        return run_full_scan(domain)
+        clean_dkim_selector = (
+            clean_selector(dkim_selector)
+            if dkim_selector
+            else None
+        )
 
-    except DomainValidationError as error:
+        return run_full_scan(
+            domain,
+            dkim_selector=clean_dkim_selector,
+        )
+
+    except (
+        DomainValidationError,
+        DKIMSelectorError,
+    ) as error:
         raise HTTPException(
             status_code=400,
             detail=str(error),

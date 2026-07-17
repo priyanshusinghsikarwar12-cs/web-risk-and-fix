@@ -80,27 +80,35 @@ def evaluate_health(
         "status_code": status_code,
         "response_category": response_category,
         "response_time_ms": response_time_ms,
-        "performance": classify_response_time(response_time_ms),
+        "performance": (
+    classify_response_time(response_time_ms)
+    if response_time_ms is not None
+    else None
+),
         "final_url": final_url,
         "https": uses_https,
     }
 
 
-def check_website_health(domain: str):
+def check_website_health(
+    domain: str,
+    response=None,
+    response_time_ms=None,
+):
     url = f"https://{domain}"
 
     try:
-        start = time.perf_counter()
+        if response is None:
+            start = time.perf_counter()
 
-        response = safe_get(
-            url,
-            timeout=10,
-        )
+            response = safe_get(
+                url,
+                timeout=10,
+            )
 
-        response_time_ms = round(
-            (time.perf_counter() - start) * 1000
-        )
-
+            response_time_ms = round(
+                (time.perf_counter() - start) * 1000
+            )
         return evaluate_health(
             response.status_code,
             response_time_ms,

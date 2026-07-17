@@ -126,7 +126,7 @@ def detect_technologies_from_evidence(headers, html):
     return detections
 
 
-def detect_technologies(domain: str):
+def detect_technologies(domain: str, response=None):
     url = f"https://{domain}"
 
     try:

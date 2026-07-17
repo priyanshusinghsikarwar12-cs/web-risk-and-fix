@@ -300,7 +300,7 @@ def validate_security_headers(headers):
     ]
 
 
-def check_security_headers(domain: str):
+def check_security_headers(domain: str, response=None):
     url = f"https://{domain}"
 
     try:

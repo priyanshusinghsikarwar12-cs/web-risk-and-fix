@@ -1,7 +1,40 @@
 from app.services.scan_engine import (
+    bind_homepage_response,
     run_full_scan,
     run_scanner,
 )
+
+def test_homepage_response_is_bound_to_scanner():
+    homepage_response = object()
+
+    def scanner(domain, response=None):
+        return {
+            "domain": domain,
+            "same_response": (
+                response is homepage_response
+            ),
+        }
+
+    bound_scanner = bind_homepage_response(
+        scanner,
+        homepage_response,
+    )
+
+    result = bound_scanner("example.com")
+
+    assert result["same_response"] is True
+
+
+def test_scanner_is_unchanged_without_response():
+    def scanner(domain):
+        return {"domain": domain}
+
+    result = bind_homepage_response(
+        scanner,
+        None,
+    )
+
+    assert result is scanner
 
 
 def test_successful_scanner_returns_result():
@@ -62,7 +95,7 @@ def test_invalid_scanner_result_returns_fallback():
     assert result == fallback
     assert failure["error_type"] == "TypeError"
 
-    
+
 def test_full_scan_becomes_partial_when_scanner_fails(
     monkeypatch,
 ):
@@ -107,6 +140,74 @@ def test_full_scan_becomes_partial_when_scanner_fails(
     )
 
     monkeypatch.setattr(
+        "app.services.scan_engine.check_tls_protocols",
+        lambda domain: {
+            "name": "TLS Protocol Security",
+            "domain": domain,
+            "status": "Protected",
+            "message": (
+                "Modern TLS protocols are supported."
+            ),
+            "confidence": "High",
+            "checks": [],
+            "score_eligible": False,
+        },
+    )
+
+    monkeypatch.setattr(
+        "app.services.scan_engine.check_mixed_content",
+        lambda domain: {
+            "name": "Mixed Content",
+            "domain": domain,
+            "url": f"https://{domain}",
+            "status": "Protected",
+            "message": (
+                "No insecure HTTP resources were found."
+            ),
+            "checks": [],
+            "total_found": 0,
+            "results_limited": False,
+            "scope": "Initial homepage HTML only",
+            "score_eligible": False,
+        },
+    )  
+
+    monkeypatch.setattr(
+        "app.services.scan_engine.check_script_inventory",
+        lambda domain: {
+            "name": "Script Inventory",
+            "domain": domain,
+            "url": f"https://{domain}",
+            "status": "No External Scripts",
+            "message": (
+                "No external scripts were observed."
+            ),
+            "checks": [],
+            "total_script_files": 0,
+            "external_script_count": 0,
+            "inline_script_count": 0,
+            "insecure_script_count": 0,
+            "results_limited": False,
+            "scope": "Initial homepage HTML only",
+            "score_eligible": False,
+        },
+    )    
+
+    monkeypatch.setattr(
+        "app.services.scan_engine.check_public_security_files",
+        lambda domain: {
+            "name": "Public Security Files",
+            "domain": domain,
+            "status": "Completed",
+            "message": (
+                "Public security files were inspected."
+            ),
+            "checks": [],
+            "score_eligible": False,
+        },
+    )    
+
+    monkeypatch.setattr(
         "app.services.scan_engine.check_dns_records",
         lambda domain: {
             "status": "Completed",
@@ -121,6 +222,56 @@ def test_full_scan_becomes_partial_when_scanner_fails(
             "checks": [],
         },
     )
+    
+    monkeypatch.setattr(
+        "app.services.scan_engine.check_cookie_security",
+        lambda domain: {
+            "name": "Cookie Security",
+            "status": "Not Observed",
+            "checks": [],
+        },
+    )
+
+    monkeypatch.setattr(
+        "app.services.scan_engine.check_domain_registration",
+        lambda domain: {
+            "name": "Domain Registration",
+            "domain": domain,
+            "status": "Healthy",
+            "message": (
+                "The domain registration is active."
+            ),
+            "source": "RDAP registry data",
+            "confidence": "High",
+            "registration_date": (
+                "2020-01-10T10:00:00+00:00"
+            ),
+            "expiration_date": (
+                "2027-07-15T00:00:00+00:00"
+            ),
+            "last_changed_date": None,
+            "days_left": 365,
+        },
+    )
+    monkeypatch.setattr(
+        "app.services.scan_engine.check_website_reputation",
+        lambda domain: {
+            "name": "Website Reputation",
+            "domain": domain,
+            "provider": "Google Web Risk",
+            "checked_url": f"https://{domain}/",
+            "scope": "Homepage URL only",
+            "status": "No Known Threats",
+            "message": (
+                "No known threats were found."
+            ),
+            "confidence": "High",
+            "threat_types": [],
+            "checks": [],
+            "cache_expires_at": None,
+            "score_eligible": False,
+        },
+    )    
 
     report = run_full_scan("example.com")
 
@@ -131,3 +282,15 @@ def test_full_scan_becomes_partial_when_scanner_fails(
         report["scan_failures"][0]["scanner"]
         == "Security Headers"
     )  
+    assert (
+        report["cookie_security"]["status"]
+        == "Not Observed"
+    )
+    assert (
+        report["domain_registration"]["status"]
+        == "Healthy"
+    )
+    assert (
+        report["reputation"]["status"]
+        == "No Known Threats"
+    )    

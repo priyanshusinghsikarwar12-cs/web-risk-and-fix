@@ -1,28 +1,36 @@
-import requests
-from app.utils.safe_http import safe_get
+from app.services.homepage_fetcher import (
+    fetch_homepage,
+)
 
 
 def check_connectivity(domain: str):
-    try:
-        clean_domain = (
-            domain
-            .replace("https://", "")
-            .replace("http://", "")
-            .strip("/")
-        )
+    clean_domain = (
+        domain
+        .replace("https://", "")
+        .replace("http://", "")
+        .strip("/")
+    )
 
-        url = f"https://{clean_domain}"
-        response = safe_get(url, timeout=10)
+    homepage = fetch_homepage(clean_domain)
+    response = homepage["response"]
 
+    if response is None:
         return {
             "domain": clean_domain,
-            "url": url,
-            "status_code": response.status_code,
-            "reachable": True,
+            "reachable": False,
+            "error": homepage["error"],
+            "error_type": homepage["error_type"],
         }
 
-    except Exception:
-        return {
-            "domain": domain,
-            "reachable": False,
-        }
+    return {
+        "domain": clean_domain,
+        "url": response.url,
+        "status_code": response.status_code,
+        "reachable": True,
+
+        # Internal values removed before creating the report.
+        "_homepage_response": response,
+        "_response_time_ms": homepage[
+            "response_time_ms"
+        ],
+    }

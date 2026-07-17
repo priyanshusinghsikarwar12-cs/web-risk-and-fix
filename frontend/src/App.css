@@ -557,3 +557,262 @@ input {
 .platform-guidance h5 {
   text-transform: capitalize;
 }
+
+.section-summary {
+  margin: 8px 0 18px;
+  color: #475467;
+}
+
+.cookie-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.cookie-flags span {
+  padding: 5px 9px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.flag-good {
+  background: #ecfdf3;
+  color: #027a48;
+}
+
+.flag-warning {
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.flag-review {
+  background: #f2f4f7;
+  color: #475467;
+}
+
+.cookie-warnings {
+  margin: 14px 0 0;
+  padding-left: 20px;
+  color: #475467;
+}
+
+.cookie-warnings li + li {
+  margin-top: 6px;
+}
+
+.cookie-empty {
+  padding: 18px;
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.cookie-empty p {
+  margin: 8px 0 0;
+  color: #475467;
+}
+
+.registration-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 18px;
+  margin-top: 16px;
+}
+
+.registration-details span {
+  padding: 10px 12px;
+  background: #f2f4f7;
+  border-radius: 8px;
+  color: #344054;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+@media (max-width: 700px) {
+  .registration-details {
+    grid-template-columns: 1fr;
+  }
+}
+
+.email-scan-options {
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  text-align: left;
+}
+
+.email-scan-options summary {
+  color: #344054;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.email-selector-field {
+  margin-top: 14px;
+}
+
+.email-selector-field label {
+  display: block;
+  color: #101828;
+  font-weight: 700;
+}
+
+.email-selector-field p {
+  margin: 6px 0 10px;
+  color: #475467;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.email-selector-field input {
+  width: 100%;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  color: #101828;
+}
+
+.dkim-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.dkim-details span {
+  padding: 7px 10px;
+  background: #f2f4f7;
+  border-radius: 8px;
+  color: #344054;
+  font-size: 13px;
+}
+
+.status-neutral {
+  background: #f2f4f7;
+  color: #475467;
+}
+
+.tls-cipher {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 6px 9px;
+  background: #eef2f6;
+  border-radius: 6px;
+  color: #344054;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.mixed-resource-url {
+  display: block;
+  max-width: 100%;
+  margin-top: 10px;
+  padding: 7px 9px;
+  background: #fef2f2;
+  border-radius: 6px;
+  color: #b42318;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.script-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.script-summary-grid > div {
+  padding: 16px;
+  background: #f8fafc;
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+}
+
+.script-summary-grid strong {
+  display: block;
+  color: #101828;
+  font-size: 24px;
+}
+
+.script-summary-grid span {
+  display: block;
+  margin-top: 5px;
+  color: #475467;
+  font-size: 13px;
+}
+
+.script-resource-url {
+  display: block;
+  max-width: 100%;
+  margin-top: 10px;
+  padding: 7px 9px;
+  background: #eef2f6;
+  border-radius: 6px;
+  color: #344054;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.script-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.script-details span {
+  padding: 5px 8px;
+  background: #eaecf0;
+  border-radius: 6px;
+  color: #344054;
+  font-size: 12px;
+}
+
+.status-observed {
+  height: fit-content;
+  padding: 6px 10px;
+  background: #eff8ff;
+  border-radius: 8px;
+  color: #175cd3;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 700px) {
+  .script-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.public-file-url {
+  display: block;
+  max-width: 100%;
+  margin-top: 10px;
+  padding: 7px 9px;
+  background: #eef2f6;
+  border-radius: 6px;
+  color: #344054;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.public-file-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.public-file-details span {
+  padding: 5px 8px;
+  background: #eaecf0;
+  border-radius: 6px;
+  color: #344054;
+  font-size: 12px;
+}

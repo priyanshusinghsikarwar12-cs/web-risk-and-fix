@@ -80,6 +80,58 @@ FIX_GUIDANCE = {
             "chain with your hosting provider."
         ),
     },
+    "Renew your domain registration": {
+        "why_it_matters": (
+            "If the domain expires, the website and domain-based "
+            "email may stop working. Another party may eventually "
+            "be able to register the domain."
+        ),
+        "technical_name": "RDAP domain expiration",
+        "generic_fix": (
+            "Sign in to the domain registrar, renew the domain, "
+            "confirm the payment method, and enable automatic renewal."
+        ),
+    },
+
+    "Review your domain renewal": {
+        "why_it_matters": (
+            "The domain is approaching its published expiration "
+            "date. A failed renewal could interrupt the website "
+            "and email."
+        ),
+        "technical_name": "RDAP domain expiration",
+        "generic_fix": (
+            "Confirm that automatic renewal is enabled and that "
+            "the registrar has a valid payment method."
+        ),
+    },
+
+    "Fix your DKIM email signing": {
+        "why_it_matters": (
+            "A broken or revoked DKIM key may prevent email "
+            "signatures from being verified and can reduce email "
+            "trust or deliverability."
+        ),
+        "technical_name": "DKIM DNS TXT record",
+        "generic_fix": (
+            "Generate or obtain a new DKIM record from the email "
+            "provider, publish it at the correct selector, wait "
+            "for DNS changes, and test the selector again."
+        ),
+    },
+
+    "Confirm your DKIM selector": {
+        "why_it_matters": (
+            "DKIM can only be validated using the selector that "
+            "the email service uses to sign outgoing messages."
+        ),
+        "technical_name": "selector._domainkey",
+        "generic_fix": (
+            "Find the selector in the email provider settings or "
+            "in the s= value of a DKIM-Signature email header, "
+            "then run the check again."
+        ),
+    },    
 }
 
 
@@ -106,6 +158,16 @@ TECHNOLOGY_FIXES = {
         "security plugin, or web server configuration before changing "
         "security headers."
     ),
+}
+
+TECHNOLOGY_AWARE_RECOMMENDATIONS = {
+    "Enable HTTPS Protection",
+    "Enable Click Protection",
+    "Enable File Type Protection",
+    "Enable Script Attack Protection",
+    "Enable Privacy Protection",
+    "Enable Browser Feature Protection",
+    "Fix your website security certificate",
 }
 
 
@@ -146,7 +208,11 @@ def add_fix_guidance(
                 "generic_fix"
             )
 
-            if detected_technology:
+            if (
+                detected_technology
+                and item.get("title")
+                in TECHNOLOGY_AWARE_RECOMMENDATIONS
+            ):
                 guidance_data["platform"] = detected_technology
 
                 guidance_data["platform_guidance"] = (

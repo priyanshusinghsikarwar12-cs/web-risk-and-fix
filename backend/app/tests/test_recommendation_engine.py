@@ -81,3 +81,68 @@ def test_failed_security_header_creates_recommendation():
 
     assert len(recommendations) == 1
     assert recommendations[0]["title"] == "Enable HTTPS Protection"
+
+def test_expiring_domain_creates_high_priority_recommendation():
+    recommendations = generate_recommendations(
+        {"checks": []},
+        safe_ssl(),
+        {"checks": []},
+        {
+            "status": "Needs Attention",
+            "message": "The domain expires in 20 days.",
+        },
+    )
+
+    assert len(recommendations) == 1
+    assert recommendations[0]["title"] == (
+        "Renew your domain registration"
+    )
+    assert recommendations[0]["priority"] == "High"
+
+
+def test_healthy_domain_creates_no_recommendation():
+    recommendations = generate_recommendations(
+        {"checks": []},
+        safe_ssl(),
+        {"checks": []},
+        {
+            "status": "Healthy",
+            "message": "The domain registration is healthy.",
+        },
+    )
+
+    assert recommendations == []
+
+
+def test_revoked_dkim_creates_high_priority_recommendation():
+    recommendations = generate_recommendations(
+        {"checks": []},
+        safe_ssl(),
+        {"checks": []},
+        {"status": "Healthy"},
+        {
+            "status": "Revoked",
+            "message": "The DKIM key was revoked.",
+        },
+    )
+
+    assert len(recommendations) == 1
+    assert recommendations[0]["title"] == (
+        "Fix your DKIM email signing"
+    )
+    assert recommendations[0]["priority"] == "High"
+
+
+def test_selector_required_creates_no_recommendation():
+    recommendations = generate_recommendations(
+        {"checks": []},
+        safe_ssl(),
+        {"checks": []},
+        {"status": "Healthy"},
+        {
+            "status": "Selector Required",
+            "message": "Enter a selector.",
+        },
+    )
+
+    assert recommendations == []    
