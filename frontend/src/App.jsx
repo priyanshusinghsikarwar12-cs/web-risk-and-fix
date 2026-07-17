@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import "./App.css";
+import DeepScanPanel from "./DeepScanPanel";
 
 function App() {
   const [domain, setDomain] = useState("");
@@ -265,7 +266,10 @@ function App() {
   <p>{report.summary}</p>
 </div>
             </div>
-
+<DeepScanPanel
+  key={report.domain}
+  domain={report.domain || domain}
+/>                       
             <div className="recommendations">
               <h3>What should you fix first?</h3>
 

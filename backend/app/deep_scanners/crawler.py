@@ -14,6 +14,10 @@ from app.utils.safe_http import safe_get
 from app.deep_scanners.form_hygiene import (
     analyze_form_hygiene,
 )
+from app.deep_scanners.page_security import (
+    analyze_page_security,
+    summarize_page_security,
+)
 
 SKIPPED_EXTENSIONS = {
     ".7z",
@@ -417,7 +421,8 @@ def crawl_verified_site(
     visited_urls = set()
 
     pages = []
-    forms = []
+    page_security_results = []
+    forms = []   
     parameters = set()
     login_surfaces = []
     external_hosts = set()
@@ -485,6 +490,18 @@ def crawl_verified_site(
                 final_url,
                 safe_domain,
             )
+            page_security_result = (
+                analyze_page_security(response)
+            )
+
+            page_security_results.append(
+                page_security_result
+            )
+
+            page_result["security_status"] = (
+                page_security_result["status"]
+            )
+                    
 
             page_result["title"] = analysis["title"]
             pages.append(page_result)
@@ -551,7 +568,10 @@ def crawl_verified_site(
             f"WebShield safely inspected {len(pages)} "
             "page(s) without submitting forms."
         )
-    form_hygiene = analyze_form_hygiene(forms)        
+    form_hygiene = analyze_form_hygiene(forms)  
+    page_security = summarize_page_security(
+        page_security_results
+    )          
 
     return {
         "name": "Verified Application Crawler",
@@ -566,6 +586,7 @@ def crawl_verified_site(
         "forms": forms,
         "form_count": len(forms),
         "form_hygiene": form_hygiene,
+        "page_security": page_security,
         "parameter_names": sorted(parameters),
         "parameter_count": len(parameters),
         "login_surfaces": login_surfaces,

@@ -1,10 +1,15 @@
 import os
+from pathlib import Path
 from typing import Literal
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from dotenv import load_dotenv
 from app.scanners.headers import check_security_headers
 from app.services.scan_engine import run_full_scan
+from app.services.deep_scan_engine import (
+    run_verified_deep_scan,
+)
 from app.utils.domain import (
     DomainValidationError,
     validate_public_domain,
@@ -33,6 +38,21 @@ from app.deep_scanners.subdomains import (
 from app.deep_scanners.ports import (
     scan_open_ports,
 )
+from app.deep_scanners.js_advisories import (
+    check_javascript_advisories,
+)
+from app.deep_scanners.zap_baseline import (
+    run_zap_baseline,
+)
+
+BACKEND_DIRECTORY = (
+    Path(__file__).resolve().parent.parent
+)
+
+load_dotenv(
+    BACKEND_DIRECTORY / ".env",
+    override=False,
+)
 
 app = FastAPI()
 
@@ -47,6 +67,50 @@ class VerificationCheckRequest(BaseModel):
 
 class DeepScanAccessRequest(BaseModel):
     domain: str
+
+class FullDeepScanRequest(BaseModel):
+    domain: str
+
+    max_pages: int = Field(
+        default=25,
+        ge=1,
+        le=50,
+    )
+
+    max_depth: int = Field(
+        default=2,
+        ge=0,
+        le=3,
+    )
+
+    include_zap: bool = False
+
+    zap_spider_minutes: int = Field(
+        default=1,
+        ge=1,
+        le=3,
+    )
+
+    zap_maximum_minutes: int = Field(
+        default=5,
+        ge=2,
+        le=10,
+    )
+
+class DeepScanZapRequest(BaseModel):
+    domain: str
+
+    spider_minutes: int = Field(
+        default=1,
+        ge=1,
+        le=3,
+    )
+
+    maximum_minutes: int = Field(
+        default=5,
+        ge=2,
+        le=10,
+    )    
 
 
 
@@ -356,3 +420,68 @@ def deep_scan_ports(
         timeout=0.75,
         max_workers=20,
     )
+
+@app.post("/deep-scan/js-advisories")
+def deep_scan_javascript_advisories(
+    request: DeepScanAccessRequest,
+    authorization: str | None = Header(
+        default=None,
+    ),
+):
+    authorization_payload = (
+        require_deep_scan_access(
+            request.domain,
+            authorization,
+        )
+    )
+
+    return check_javascript_advisories(
+        authorization_payload["domain"],
+    )    
+
+@app.post("/deep-scan/zap-baseline")
+def deep_scan_zap_baseline(
+    request: DeepScanZapRequest,
+    authorization: str | None = Header(
+        default=None,
+    ),
+):
+    authorization_payload = (
+        require_deep_scan_access(
+            request.domain,
+            authorization,
+        )
+    )
+
+    return run_zap_baseline(
+        authorization_payload["domain"],
+        spider_minutes=request.spider_minutes,
+        maximum_minutes=request.maximum_minutes,
+    )  
+
+@app.post("/deep-scan/run")
+def run_complete_deep_scan(
+    request: FullDeepScanRequest,
+    authorization: str | None = Header(
+        default=None,
+    ),
+):
+    authorization_payload = (
+        require_deep_scan_access(
+            request.domain,
+            authorization,
+        )
+    )
+
+    return run_verified_deep_scan(
+        authorization_payload["domain"],
+        max_pages=request.max_pages,
+        max_depth=request.max_depth,
+        include_zap=request.include_zap,
+        zap_spider_minutes=(
+            request.zap_spider_minutes
+        ),
+        zap_maximum_minutes=(
+            request.zap_maximum_minutes
+        ),
+    )     

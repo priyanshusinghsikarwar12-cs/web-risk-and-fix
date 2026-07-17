@@ -862,3 +862,386 @@ input {
   font-size: 13px;
   line-height: 1.5;
 }
+
+/* Verified deep scan */
+
+.deep-scan-panel {
+  margin-top: 34px;
+  padding: 26px;
+  background: #f8faff;
+  border: 1px solid #c7d7fe;
+  border-radius: 16px;
+}
+
+.deep-scan-heading,
+.verified-domain,
+.deep-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+
+.deep-scan-heading h3,
+.verified-domain h4,
+.deep-result-header h4 {
+  margin: 7px 0;
+}
+
+.deep-scan-heading p,
+.verified-domain p,
+.deep-result-header p {
+  margin: 0;
+  color: #475467;
+}
+
+.deep-scan-label,
+.verified-badge,
+.deep-status {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.deep-scan-label {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.verified-badge,
+.deep-status.complete {
+  background: #dcfae6;
+  color: #067647;
+}
+
+.deep-status.partial {
+  background: #fef0c7;
+  color: #b54708;
+}
+
+.deep-primary-button,
+.deep-secondary-button {
+  padding: 12px 18px;
+  border-radius: 9px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.deep-primary-button {
+  border: none;
+  background: #4f46e5;
+  color: #ffffff;
+}
+
+.deep-secondary-button {
+  background: #ffffff;
+  border: 1px solid #d0d5dd;
+  color: #344054;
+}
+
+.deep-primary-button:disabled,
+.deep-secondary-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.verification-workspace,
+.deep-scan-results {
+  margin-top: 22px;
+}
+
+.verification-methods {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.verification-method {
+  padding: 10px 14px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #344054;
+  cursor: pointer;
+}
+
+.verification-method.active {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #ffffff;
+}
+
+.verification-instructions {
+  padding: 20px;
+  background: #ffffff;
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+}
+
+.verification-instructions h4 {
+  margin-top: 0;
+}
+
+.verification-value {
+  margin-top: 14px;
+}
+
+.verification-value span {
+  display: block;
+  margin-bottom: 5px;
+  color: #475467;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.verification-value code {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 11px;
+  background: #f2f4f7;
+  border-radius: 7px;
+  color: #101828;
+}
+
+.verification-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.verification-expiry {
+  margin-bottom: 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+.verified-domain {
+  margin-top: 20px;
+  padding: 18px;
+  background: #ffffff;
+  border: 1px solid #a6f4c5;
+  border-radius: 12px;
+}
+
+.deep-scan-progress {
+  margin-top: 18px;
+  padding: 16px;
+  background: #eef4ff;
+  border-radius: 10px;
+  color: #344054;
+}
+
+.deep-scan-progress p {
+  margin: 7px 0 0;
+}
+
+.deep-scan-error {
+  margin-top: 16px;
+  padding: 14px;
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+  border-radius: 9px;
+  color: #b42318;
+}
+
+.deep-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.deep-summary-grid div {
+  padding: 15px;
+  background: #ffffff;
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+}
+
+.deep-summary-grid strong,
+.deep-summary-grid span {
+  display: block;
+}
+
+.deep-summary-grid strong {
+  color: #101828;
+  font-size: 25px;
+}
+
+.deep-summary-grid span {
+  margin-top: 5px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.deep-scan-failures {
+  margin-top: 18px;
+  padding: 16px;
+  background: #fffaeb;
+  border: 1px solid #fedf89;
+  border-radius: 10px;
+}
+
+.deep-scan-failures h5 {
+  margin-top: 0;
+}
+
+@media (max-width: 1000px) {
+  .deep-summary-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 700px) {
+  .deep-scan-heading,
+  .verified-domain,
+  .deep-result-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .verification-actions {
+    flex-direction: column;
+  }
+
+  .deep-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+/* Deep scan details */
+
+.deep-details {
+  margin-top: 26px;
+}
+
+.deep-details > h4 {
+  margin-bottom: 14px;
+  font-size: 20px;
+}
+
+.deep-result-section {
+  margin-top: 12px;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #d0d5dd;
+  border-radius: 12px;
+}
+
+.deep-result-section > summary {
+  padding: 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.deep-result-section > summary p {
+  margin: 6px 0 0;
+  color: #667085;
+}
+
+.deep-result-section-content {
+  padding: 0 18px 18px;
+}
+
+.deep-metadata-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.deep-metadata-grid span {
+  padding: 12px;
+  background: #f2f4f7;
+  border-radius: 8px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.deep-metadata-grid strong {
+  display: block;
+  color: #101828;
+  font-size: 21px;
+}
+
+.deep-result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.deep-result-item {
+  padding: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  background: #f9fafb;
+  border: 1px solid #eaecf0;
+  border-radius: 9px;
+}
+
+.deep-result-item p {
+  margin: 6px 0;
+  color: #475467;
+}
+
+.deep-result-url {
+  display: block;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+  color: #344054;
+}
+
+.deep-inline-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.deep-inline-details span {
+  padding: 5px 8px;
+  background: #eaecf0;
+  border-radius: 6px;
+  color: #475467;
+  font-size: 12px;
+}
+
+.deep-empty-result,
+.deep-scope-note {
+  padding: 14px;
+  background: #f2f4f7;
+  border-radius: 8px;
+  color: #475467;
+}
+
+.deep-result-link {
+  display: inline-block;
+  margin-top: 10px;
+  color: #4338ca;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.deep-result-link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 700px) {
+  .deep-metadata-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .deep-result-section > summary,
+  .deep-result-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

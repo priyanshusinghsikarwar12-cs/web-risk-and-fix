@@ -577,3 +577,288 @@ def test_authorized_port_endpoint_runs(
     assert received["domain"] == "example.com"
     assert received["timeout"] == 0.75
     assert received["max_workers"] == 20    
+
+def test_js_advisory_endpoint_requires_receipt(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "WEBSHIELD_VERIFICATION_SECRET",
+        TEST_VERIFICATION_SECRET,
+    )
+
+    response = client.post(
+        "/deep-scan/js-advisories",
+        json={"domain": "example.com"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_authorized_js_advisory_endpoint_runs(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "WEBSHIELD_VERIFICATION_SECRET",
+        TEST_VERIFICATION_SECRET,
+    )
+
+    authorization = create_authorization_receipt(
+        "example.com",
+        "DNS TXT",
+        TEST_VERIFICATION_SECRET,
+    )
+
+    monkeypatch.setattr(
+        "app.main.check_javascript_advisories",
+        lambda domain: {
+            "name": (
+                "JavaScript Known Vulnerabilities"
+            ),
+            "domain": domain,
+            "status": "Not Observed",
+            "vulnerability_match_count": 0,
+            "checks": [],
+        },
+    )
+
+    response = client.post(
+        "/deep-scan/js-advisories",
+        json={"domain": "example.com"},
+        headers={
+            "Authorization": (
+                f"Bearer {authorization['receipt']}"
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["domain"] == "example.com"
+    assert (
+        response.json()[
+            "vulnerability_match_count"
+        ]
+        == 0
+    )
+
+def test_zap_endpoint_requires_receipt(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "WEBSHIELD_VERIFICATION_SECRET",
+        TEST_VERIFICATION_SECRET,
+    )
+
+    response = client.post(
+        "/deep-scan/zap-baseline",
+        json={
+            "domain": "example.com",
+            "spider_minutes": 1,
+            "maximum_minutes": 5,
+        },
+    )
+
+    assert response.status_code == 401
+
+
+def test_authorized_zap_endpoint_runs(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "WEBSHIELD_VERIFICATION_SECRET",
+        TEST_VERIFICATION_SECRET,
+    )
+
+    authorization = create_authorization_receipt(
+        "example.com",
+        "DNS TXT",
+        TEST_VERIFICATION_SECRET,
+    )
+
+    received = {}
+
+    def fake_zap_scan(
+        domain,
+        spider_minutes,
+        maximum_minutes,
+    ):
+        received["domain"] = domain
+        received["spider_minutes"] = (
+            spider_minutes
+        )
+        received["maximum_minutes"] = (
+            maximum_minutes
+        )
+
+        return {
+            "name": "OWASP ZAP Baseline",
+            "domain": domain,
+            "status": "Not Observed",
+            "finding_count": 0,
+            "checks": [],
+            "active_attack_payloads": False,
+        }
+
+    monkeypatch.setattr(
+        "app.main.run_zap_baseline",
+        fake_zap_scan,
+    )
+
+    response = client.post(
+        "/deep-scan/zap-baseline",
+        json={
+            "domain": "example.com",
+            "spider_minutes": 1,
+            "maximum_minutes": 5,
+        },
+        headers={
+            "Authorization": (
+                f"Bearer {authorization['receipt']}"
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["domain"] == (
+        "example.com"
+    )
+    assert response.json()["finding_count"] == 0
+    assert (
+        response.json()[
+            "active_attack_payloads"
+        ]
+        is False
+    )
+
+    assert received["domain"] == "example.com"
+    assert received["spider_minutes"] == 1
+    assert received["maximum_minutes"] == 5
+
+
+def test_zap_endpoint_rejects_excessive_limits():
+    response = client.post(
+        "/deep-scan/zap-baseline",
+        json={
+            "domain": "example.com",
+            "spider_minutes": 30,
+            "maximum_minutes": 60,
+        },
+    )
+
+    assert response.status_code == 422    
+
+def test_complete_deep_scan_requires_receipt(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "WEBSHIELD_VERIFICATION_SECRET",
+        TEST_VERIFICATION_SECRET,
+    )
+
+    response = client.post(
+        "/deep-scan/run",
+        json={
+            "domain": "example.com",
+        },
+    )
+
+    assert response.status_code == 401
+
+
+def test_authorized_complete_deep_scan_runs(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "WEBSHIELD_VERIFICATION_SECRET",
+        TEST_VERIFICATION_SECRET,
+    )
+
+    authorization = create_authorization_receipt(
+        "example.com",
+        "DNS TXT",
+        TEST_VERIFICATION_SECRET,
+    )
+
+    received = {}
+
+    def fake_deep_scan(
+        domain,
+        max_pages,
+        max_depth,
+        include_zap,
+        zap_spider_minutes,
+        zap_maximum_minutes,
+    ):
+        received["domain"] = domain
+        received["max_pages"] = max_pages
+        received["max_depth"] = max_depth
+        received["include_zap"] = include_zap
+        received["zap_spider_minutes"] = (
+            zap_spider_minutes
+        )
+        received["zap_maximum_minutes"] = (
+            zap_maximum_minutes
+        )
+
+        return {
+            "name": "WebShield Verified Deep Scan",
+            "domain": domain,
+            "scan_status": "Complete",
+            "finding_summary": {
+                "pages_crawled": 5,
+                "sensitive_exposures": 0,
+                "subdomains_discovered": 2,
+                "open_ports": 2,
+                "javascript_advisories": 0,
+                "zap_findings": 0,
+            },
+        }
+
+    monkeypatch.setattr(
+        "app.main.run_verified_deep_scan",
+        fake_deep_scan,
+    )
+
+    response = client.post(
+        "/deep-scan/run",
+        json={
+            "domain": "example.com",
+            "max_pages": 15,
+            "max_depth": 2,
+            "include_zap": False,
+        },
+        headers={
+            "Authorization": (
+                f"Bearer {authorization['receipt']}"
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["domain"] == (
+        "example.com"
+    )
+    assert (
+        response.json()["scan_status"]
+        == "Complete"
+    )
+
+    assert received["domain"] == "example.com"
+    assert received["max_pages"] == 15
+    assert received["max_depth"] == 2
+    assert received["include_zap"] is False
+    assert received["zap_spider_minutes"] == 1
+    assert received["zap_maximum_minutes"] == 5
+
+
+def test_complete_deep_scan_rejects_bad_limits():
+    response = client.post(
+        "/deep-scan/run",
+        json={
+            "domain": "example.com",
+            "max_pages": 1000,
+            "max_depth": 50,
+            "zap_spider_minutes": 20,
+        },
+    )
+
+    assert response.status_code == 422    
