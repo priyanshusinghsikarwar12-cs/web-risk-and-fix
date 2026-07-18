@@ -1,7 +1,12 @@
 import os
 from pathlib import Path
 from typing import Literal
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import (
+    FastAPI,
+    Header,
+    HTTPException,
+    Request,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
@@ -43,6 +48,10 @@ from app.deep_scanners.js_advisories import (
 )
 from app.deep_scanners.zap_baseline import (
     run_zap_baseline,
+)
+from app.services.development_access import (
+    DevelopmentAccessError,
+    validate_development_admin_access,
 )
 
 BACKEND_DIRECTORY = (
@@ -462,16 +471,44 @@ def deep_scan_zap_baseline(
 @app.post("/deep-scan/run")
 def run_complete_deep_scan(
     request: FullDeepScanRequest,
+    http_request: Request,
     authorization: str | None = Header(
         default=None,
     ),
+    x_webshield_admin_token: str | None = Header(
+        default=None,
+    ),
 ):
-    authorization_payload = (
-        require_deep_scan_access(
-            request.domain,
-            authorization,
+    if x_webshield_admin_token:
+        try:
+            authorization_payload = (
+                validate_development_admin_access(
+                    request.domain,
+                    x_webshield_admin_token,
+                    (
+                        http_request.client.host
+                        if http_request.client
+                        else None
+                    ),
+                )
+            )
+
+        except (
+            DomainValidationError,
+            DevelopmentAccessError,
+        ) as error:
+            raise HTTPException(
+                status_code=403,
+                detail=str(error),
+            ) from error
+
+    else:
+        authorization_payload = (
+            require_deep_scan_access(
+                request.domain,
+                authorization,
+            )
         )
-    )
 
     return run_verified_deep_scan(
         authorization_payload["domain"],
@@ -484,4 +521,4 @@ def run_complete_deep_scan(
         zap_maximum_minutes=(
             request.zap_maximum_minutes
         ),
-    )     
+    )

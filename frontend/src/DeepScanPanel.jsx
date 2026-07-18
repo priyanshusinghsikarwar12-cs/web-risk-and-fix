@@ -43,6 +43,8 @@ function DeepScanPanel({ domain }) {
   const [deepScanning, setDeepScanning] =
     useState(false);
   const [error, setError] = useState("");
+  const [devAdminToken, setDevAdminToken] =
+  useState("");
 
 
   useEffect(() => {
@@ -146,28 +148,42 @@ function DeepScanPanel({ domain }) {
 
 
   const startDeepScan = async () => {
-    if (!authorizationReceipt) {
-      setError(
-        "Verify ownership before starting a deep scan."
-      );
-      return;
-    }
+  const cleanAdminToken =
+    devAdminToken.trim();
+
+  if (
+    !authorizationReceipt
+    && !cleanAdminToken
+  ) {
+    setError(
+      "Verify ownership or enter the local development admin token."
+    );
+    return;
+  }
 
     setError("");
     setDeepScanning(true);
     setDeepReport(null);
 
     try {
+      const requestHeaders = {
+  "Content-Type": "application/json",
+};
+
+if (authorizationReceipt) {
+  requestHeaders.Authorization = (
+    `Bearer ${authorizationReceipt}`
+  );
+} else {
+  requestHeaders[
+    "X-WebShield-Admin-Token"
+  ] = cleanAdminToken;
+}  
       const response = await fetch(
         `${API_URL}/deep-scan/run`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: (
-              `Bearer ${authorizationReceipt}`
-            ),
-          },
+          headers: requestHeaders,
           body: JSON.stringify({
             domain,
             max_pages: 25,
@@ -232,6 +248,43 @@ function DeepScanPanel({ domain }) {
           </button>
         )}
       </div>
+{import.meta.env.DEV &&
+  !authorizationReceipt && (
+    <details className="dev-admin-panel">
+      <summary>
+        Local development admin testing
+      </summary>
+
+      <p>
+        This option works only from this computer,
+        in development mode, and for domains listed
+        in the backend allowlist.
+      </p>
+
+      <input
+        type="password"
+        placeholder="Development admin token"
+        value={devAdminToken}
+        onChange={(event) =>
+          setDevAdminToken(event.target.value)
+        }
+        autoComplete="off"
+      />
+
+      <button
+        className="deep-primary-button"
+        onClick={startDeepScan}
+        disabled={
+          deepScanning ||
+          !devAdminToken.trim()
+        }
+      >
+        {deepScanning
+          ? "Running test scan..."
+          : "Run Admin Test Scan"}
+      </button>
+    </details>
+  )}      
 
 
       {challenge && !authorizationReceipt && (
@@ -384,9 +437,9 @@ function DeepScanPanel({ domain }) {
           </strong>
 
           <p>
-            Crawling, exposure checks, subdomains,
-            controlled ports, and JavaScript advisories
-            may take a few minutes.
+          Crawling, exposure checks, CORS and HTTP method testing,
+subdomains, controlled ports, and JavaScript
+advisories may take a few minutes.  
           </p>
         </div>
       )}
@@ -439,6 +492,24 @@ function DeepScanPanel({ domain }) {
               </strong>
               <span>Exposures</span>
             </div>
+
+<div>
+  <strong>
+    {deepReport.finding_summary
+      ?.cors_findings || 0}
+  </strong>
+
+  <span>CORS findings</span>
+</div>
+
+<div>
+  <strong>
+    {deepReport.finding_summary
+      ?.http_method_findings || 0}
+  </strong>
+
+  <span>HTTP method findings</span>
+</div>
 
             <div>
               <strong>

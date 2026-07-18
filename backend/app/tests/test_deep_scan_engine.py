@@ -43,6 +43,16 @@ def successful_scanners():
         "exposures": lambda domain, **kwargs: {
             "name": "Exposures",
             "status": "Not Observed",
+            "finding_count": 0,   
+        },
+        "cors": lambda domain, **kwargs: {
+            "name": "CORS Configuration",
+            "status": "Not Observed",
+            "finding_count": 0,
+        },
+        "http_methods": lambda domain, **kwargs: {
+            "name": "HTTP Method Exposure",
+            "status": "Protected",
             "finding_count": 0,
         },
         "subdomains": lambda domain, **kwargs: {
@@ -80,7 +90,12 @@ def test_complete_deep_scan_summary():
     assert report["finding_summary"] == {
         "pages_crawled": 5,
         "sensitive_exposures": 0,
+        "cors_findings": 0,
+        "http_method_findings": 0,
         "subdomains_discovered": 3,
+        "open_ports": 2,
+        "javascript_advisories": 0,
+        "zap_findings": 0,
         "open_ports": 2,
         "javascript_advisories": 0,
         "zap_findings": 0,

@@ -1,4 +1,7 @@
 from datetime import datetime, timezone
+from app.deep_scanners.cors import (
+    check_cors_configuration,
+)
 from time import perf_counter
 
 from app.deep_scanners.crawler import (
@@ -20,6 +23,9 @@ from app.deep_scanners.zap_baseline import (
     run_zap_baseline,
 )
 from app.utils.domain import clean_domain
+from app.deep_scanners.http_methods import (
+    check_http_method_exposure,
+)
 
 
 def unavailable_result(
@@ -112,6 +118,8 @@ def run_verified_deep_scan(
     scanner_functions = {
         "crawler": crawl_verified_site,
         "exposures": check_sensitive_exposures,
+        "cors": check_cors_configuration,
+        "http_methods": check_http_method_exposure,
         "subdomains": discover_subdomains,
         "ports": scan_open_ports,
         "javascript_advisories": (
@@ -151,6 +159,24 @@ def run_verified_deep_scan(
 
     if failure:
         failures.append(failure)
+    cors_configuration, failure = run_deep_scanner(
+        "CORS Configuration",
+        scanner_functions["cors"],
+        safe_domain,
+    )       
+    if failure:
+        failures.append(failure)
+
+    http_method_exposure, failure = (
+        run_deep_scanner(
+            "HTTP Method Exposure",
+            scanner_functions["http_methods"],
+            safe_domain,
+        )
+    )
+
+    if failure:
+        failures.append(failure)            
 
     subdomains, failure = run_deep_scanner(
         "Subdomain Discovery",
@@ -232,6 +258,16 @@ def run_verified_deep_scan(
             "finding_count",
             0,
         ),
+        "cors_findings": cors_configuration.get(
+            "finding_count",
+            0,
+        ),
+        "http_method_findings": (
+            http_method_exposure.get(
+                "finding_count",
+                0,
+            )
+        ),
         "subdomains_discovered": subdomains.get(
             "discovered_count",
             0,
@@ -250,7 +286,7 @@ def run_verified_deep_scan(
             "finding_count",
             0,
         ),
-    }
+    }    
 
     return {
         "name": "WebShield Verified Deep Scan",
@@ -270,6 +306,8 @@ def run_verified_deep_scan(
         "finding_summary": finding_summary,
         "crawler": crawler,
         "sensitive_exposures": exposures,
+        "cors_configuration": cors_configuration,
+        "http_method_exposure": http_method_exposure,
         "subdomains": subdomains,
         "open_ports": ports,
         "javascript_advisories": (

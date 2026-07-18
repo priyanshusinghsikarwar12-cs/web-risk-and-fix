@@ -1245,3 +1245,28 @@ input {
     align-items: flex-start;
   }
 }
+.dev-admin-panel {
+  margin-top: 18px;
+  padding: 16px;
+  background: #fff8e7;
+  border: 1px solid #fedf89;
+  border-radius: 10px;
+}
+
+.dev-admin-panel summary {
+  color: #93370d;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dev-admin-panel p {
+  color: #854a0e;
+}
+
+.dev-admin-panel input {
+  width: 100%;
+  margin: 8px 0 12px;
+  padding: 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+}

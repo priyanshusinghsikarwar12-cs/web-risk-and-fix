@@ -96,6 +96,8 @@ function DeepScanDetails({ report }) {
 
   const crawler = report.crawler;
   const exposures = report.sensitive_exposures;
+  const cors = report.cors_configuration;
+  const httpMethods = report.http_method_exposure;
   const subdomains = report.subdomains;
   const ports = report.open_ports;
   const advisories = report.javascript_advisories;
@@ -204,6 +206,115 @@ function DeepScanDetails({ report }) {
           />
         )}
       </ResultSection>
+
+<ResultSection
+  title="Cross-Origin Access (CORS)"
+  result={cors}
+>
+  <p className="deep-scope-note">
+    WebShield tested whether unrelated websites could
+    receive permission to read this website’s responses.
+    No login details or credentials were sent.
+  </p>
+
+  {cors?.checks?.length > 0 ? (
+    <div className="deep-result-list">
+      {cors.checks.map((finding, index) => (
+        <ResultItem
+          key={`${finding.name}-${index}`}
+          title={finding.name}
+          message={finding.message}
+          status={
+            finding.severity ||
+            finding.status
+          }
+        >
+          <div className="deep-inline-details">
+            <span>
+              Severity: {finding.severity}
+            </span>
+
+            <span>
+              Controlled requests only
+            </span>
+
+            <span>
+              No credentials sent
+            </span>
+          </div>
+        </ResultItem>
+      ))}
+    </div>
+  ) : (
+    <EmptyResult
+      message={
+        cors?.status === "Not Observed"
+          ? "The homepage did not expose a cross-origin access policy."
+          : cors?.status === "Protected"
+          ? "The website did not trust WebShield’s unrelated test origins."
+          : "No CORS result was available."
+      }
+    />
+  )}
+</ResultSection>
+
+<ResultSection
+  title="HTTP Method Exposure"
+  result={httpMethods}
+>
+  <p className="deep-scope-note">
+    WebShield sent one non-destructive OPTIONS request
+    to see which HTTP methods the server advertises.
+    It did not execute PUT, DELETE, TRACE, CONNECT, or
+    any WebDAV method.
+  </p>
+
+  {httpMethods?.advertised_methods?.length > 0 && (
+    <div className="deep-inline-details">
+      <span>
+        Advertised methods:{" "}
+        {httpMethods.advertised_methods.join(", ")}
+      </span>
+    </div>
+  )}
+
+  {httpMethods?.checks?.length > 0 ? (
+    <div className="deep-result-list">
+      {httpMethods.checks.map((finding, index) => (
+        <ResultItem
+          key={`${finding.method}-${index}`}
+          title={finding.name}
+          message={finding.message}
+          status={finding.status}
+        >
+          <div className="deep-inline-details">
+            <span>
+              Severity: {finding.severity}
+            </span>
+
+            <span>
+              Method: {finding.method}
+            </span>
+
+            <span>
+              Vulnerability confirmed: No
+            </span>
+          </div>
+        </ResultItem>
+      ))}
+    </div>
+  ) : (
+    <EmptyResult
+      message={
+        httpMethods?.status === "Protected"
+          ? "The server advertised only commonly expected HTTP methods."
+          : httpMethods?.status === "Not Observed"
+          ? "The server did not advertise supported methods in the tested response."
+          : "No HTTP method result was available."
+      }
+    />
+  )}
+</ResultSection>
 
 
       <ResultSection
