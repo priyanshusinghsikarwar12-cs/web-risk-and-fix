@@ -65,6 +65,17 @@ def successful_scanners():
             "status": "Observed",
             "open_port_count": 2,
         },
+        "hosting_context": lambda domain, **kwargs: {
+            "name": "Hosting and Infrastructure Context",
+            "status": "Hosting Provider Observed",
+            "provider": {
+                "name": "Cloudflare",
+                "confidence": "High",
+            },
+            "shared_infrastructure": {
+                "status": "Shared Edge Observed",
+            },
+        },
         "javascript_advisories": (
             lambda domain, **kwargs: {
                 "name": "JavaScript Advisories",
@@ -88,6 +99,11 @@ def test_complete_deep_scan_summary():
 
     assert report["scan_status"] == "Complete"
     assert report["finding_summary"] == {
+        "vulnerabilities": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
         "pages_crawled": 5,
         "sensitive_exposures": 0,
         "cors_findings": 0,
@@ -101,6 +117,12 @@ def test_complete_deep_scan_summary():
         "zap_findings": 0,
     }
     assert report["zap_requested"] is False
+    assert report["vulnerability_report"]["summary"][
+        "total"
+    ] == 0
+    assert report["hosting_context"]["provider"]["name"] == (
+        "Cloudflare"
+    )
     assert (
         report["zap_baseline"]["status"]
         == "Not Requested"

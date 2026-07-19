@@ -266,6 +266,48 @@ def test_full_scan_becomes_partial_when_scanner_fails(
             "checks": [],
         },
     )
+
+    monkeypatch.setattr(
+        "app.services.scan_engine.check_domain_trust",
+        lambda domain: {
+            "name": "Domain Trust",
+            "domain": domain,
+            "status": "Protected",
+            "message": "Domain trust controls were observed.",
+            "confidence": "High",
+            "checks": [],
+            "scope": "Public DNS records only",
+            "score_eligible": False,
+        },
+    )
+
+    monkeypatch.setattr(
+        "app.services.scan_engine.check_hosting_context",
+        lambda domain: {
+            "name": "Hosting and Infrastructure Context",
+            "domain": domain,
+            "status": "Hosting Context Observed",
+            "message": "Hosting context was recorded.",
+            "provider": {
+                "name": None,
+                "category": "Not identified",
+                "confidence": "None",
+                "evidence": [],
+            },
+            "addresses": [],
+            "address_count": 0,
+            "shared_infrastructure": {
+                "status": "Not Determined",
+                "message": "Sharing was not determined.",
+                "confidence": "None",
+            },
+            "attribution_note": (
+                "Confirm the origin before assigning findings."
+            ),
+            "scope": "Public DNS and initial homepage response only",
+            "score_eligible": False,
+        },
+    )
     
     monkeypatch.setattr(
         "app.services.scan_engine.check_cookie_security",
@@ -345,3 +387,9 @@ def test_full_scan_becomes_partial_when_scanner_fails(
     )
 
     assert report["privacy_signals"]["status"] == "Observed"
+    assert report["hosting_context"]["status"] == (
+        "Hosting Context Observed"
+    )
+    assert report["domain_trust"]["status"] == (
+        "Protected"
+    )

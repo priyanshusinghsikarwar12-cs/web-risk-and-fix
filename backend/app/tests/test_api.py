@@ -3,6 +3,9 @@ from app.main import app
 from app.services.domain_verification import (
     create_authorization_receipt,
 )
+from app.services.engagement_profile import (
+    create_engagement_profile,
+)
 
 
 client = TestClient(app)
@@ -112,7 +115,7 @@ def test_scan_rejects_invalid_dkim_selector():
     )
 
     assert response.status_code == 400
-    assert "selector" in response.json()["detail"].lower()  
+    assert "selector" in response.json()["detail"].lower()
 
 TEST_VERIFICATION_SECRET = (
     "test-verification-secret-that-has-more-than-32-characters"
@@ -206,7 +209,7 @@ def test_invalid_verification_method_is_rejected(
         },
     )
 
-    assert response.status_code == 422   
+    assert response.status_code == 422
 
 def test_deep_scan_rejects_missing_receipt(
     monkeypatch,
@@ -291,7 +294,7 @@ def test_deep_scan_accepts_valid_receipt(
     assert response.json()["domain"] == "example.com"
     assert response.json()["scope"] == [
         "example.com"
-    ]   
+    ]
 
 def test_crawler_endpoint_requires_receipt(
     monkeypatch,
@@ -384,7 +387,7 @@ def test_crawler_rejects_excessive_limits():
         },
     )
 
-    assert response.status_code == 422 
+    assert response.status_code == 422
 
 def test_exposure_endpoint_requires_receipt(
     monkeypatch,
@@ -450,7 +453,7 @@ def test_authorized_exposure_endpoint_runs(
     assert response.status_code == 200
     assert response.json()["finding_count"] == 0
     assert received["domain"] == "example.com"
-    assert received["delay_seconds"] == 0.15  
+    assert received["delay_seconds"] == 0.15
 
 def test_subdomain_endpoint_requires_receipt(
     monkeypatch,
@@ -506,7 +509,7 @@ def test_authorized_subdomain_endpoint_runs(
 
     assert response.status_code == 200
     assert response.json()["domain"] == "example.com"
-    assert response.json()["discovered_count"] == 2             
+    assert response.json()["discovered_count"] == 2
 
 def test_port_endpoint_requires_receipt(
     monkeypatch,
@@ -576,7 +579,7 @@ def test_authorized_port_endpoint_runs(
     assert response.json()["open_port_count"] == 2
     assert received["domain"] == "example.com"
     assert received["timeout"] == 0.75
-    assert received["max_workers"] == 20    
+    assert received["max_workers"] == 20
 
 def test_js_advisory_endpoint_requires_receipt(
     monkeypatch,
@@ -744,7 +747,7 @@ def test_zap_endpoint_rejects_excessive_limits():
         },
     )
 
-    assert response.status_code == 422    
+    assert response.status_code == 422
 
 def test_complete_deep_scan_requires_receipt(
     monkeypatch,
@@ -861,4 +864,298 @@ def test_complete_deep_scan_rejects_bad_limits():
         },
     )
 
-    assert response.status_code == 422    
+    assert response.status_code == 422
+
+
+def test_local_admin_can_create_engagement_profile(monkeypatch):
+    admin_token = "local-admin-token-that-is-at-least-32-characters"
+    monkeypatch.setenv("WEBSHIELD_ENV", "development")
+    monkeypatch.setenv("WEBSHIELD_DEV_ADMIN_TOKEN", admin_token)
+    monkeypatch.setenv("WEBSHIELD_DEV_SCAN_ALLOWLIST", "example.com")
+    monkeypatch.setenv(
+        "WEBSHIELD_VERIFICATION_SECRET",
+        TEST_VERIFICATION_SECRET,
+    )
+
+    response = client.post(
+        "/engagement/profile",
+        headers={"X-WebShield-Admin-Token": admin_token},
+        json={
+            "domain": "example.com",
+            "client_reference": "Local authorized test",
+            "authorized_by": "WebShield developer",
+            "environment": "development",
+            "max_pages": 25,
+            "max_depth": 2,
+            "include_zap": False,
+            "approved_scanners": [
+                "crawler",
+                "exposure_checks",
+                "cors",
+                "http_methods",
+                "subdomains",
+                "ports",
+                "javascript_advisories",
+            ],
+            "authorization_confirmed": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["receipt"].startswith("wse1.")
+    assert response.json()["verification_method"] == "Development Admin"
+
+
+def test_local_admin_engagement_respects_allowlist(monkeypatch):
+    admin_token = "local-admin-token-that-is-at-least-32-characters"
+    monkeypatch.setenv("WEBSHIELD_ENV", "development")
+    monkeypatch.setenv("WEBSHIELD_DEV_ADMIN_TOKEN", admin_token)
+    monkeypatch.setenv("WEBSHIELD_DEV_SCAN_ALLOWLIST", "example.org")
+
+    response = client.post(
+        "/engagement/profile",
+        headers={"X-WebShield-Admin-Token": admin_token},
+        json={
+            "domain": "example.com",
+            "client_reference": "Blocked local test",
+            "authorized_by": "WebShield developer",
+            "environment": "development",
+            "authorization_confirmed": True,
+        },
+    )
+
+    assert response.status_code == 403
+    assert "allowlist" in response.json()["detail"].lower()
+
+
+def make_test_engagement_receipt():
+    ownership = {
+        "domain": "example.com",
+        "scope": ["example.com"],
+        "verification_method": "DNS TXT",
+    }
+    return create_engagement_profile(
+        "example.com",
+        ownership,
+        {
+            "client_reference": "Test engagement",
+            "authorized_by": "Website owner",
+            "environment": "production",
+            "max_pages": 25,
+            "max_depth": 2,
+            "include_zap": False,
+            "zap_spider_minutes": 1,
+            "zap_maximum_minutes": 5,
+            "approved_scanners": ["crawler"],
+            "authorization_confirmed": True,
+        },
+        TEST_VERIFICATION_SECRET,
+    )
+
+
+def test_engagement_can_store_and_delete_test_account(monkeypatch):
+    monkeypatch.setenv(
+        "WEBSHIELD_VERIFICATION_SECRET",
+        TEST_VERIFICATION_SECRET,
+    )
+    monkeypatch.setenv(
+        "WEBSHIELD_CREDENTIAL_VAULT_SECRET",
+        "api-vault-secret-that-is-at-least-32-characters",
+    )
+    engagement = make_test_engagement_receipt()
+    headers = {
+        "Authorization": f"Bearer {engagement['receipt']}"
+    }
+
+    stored = client.post(
+        "/engagement/test-account",
+        headers=headers,
+        json={
+            "domain": "example.com",
+            "login_url": "https://example.com/login",
+            "username": "test-user@example.com",
+            "password": "temporary-test-password",
+            "ttl_minutes": 30,
+        },
+    )
+
+    assert stored.status_code == 200
+    body = stored.json()
+    assert body["status"] == "Stored Encrypted"
+    assert "password" not in body
+    assert "username" not in body
+
+    deleted = client.delete(
+        f"/engagement/test-account/{body['credential_id']}",
+        params={"domain": "example.com"},
+        headers=headers,
+    )
+    assert deleted.status_code == 200
+    assert deleted.json()["deleted"] is True
+
+
+def test_ownership_receipt_cannot_store_test_account(monkeypatch):
+    monkeypatch.setenv(
+        "WEBSHIELD_VERIFICATION_SECRET",
+        TEST_VERIFICATION_SECRET,
+    )
+    ownership = create_authorization_receipt(
+        "example.com",
+        "DNS TXT",
+        TEST_VERIFICATION_SECRET,
+    )
+
+    response = client.post(
+        "/engagement/test-account",
+        headers={
+            "Authorization": f"Bearer {ownership['receipt']}"
+        },
+        json={
+            "domain": "example.com",
+            "login_url": "https://example.com/login",
+            "username": "test-user@example.com",
+            "password": "temporary-test-password",
+        },
+    )
+
+    assert response.status_code == 403
+    assert "Engagement Profile" in response.json()["detail"]
+
+
+def test_engagement_can_create_login_session(monkeypatch):
+    monkeypatch.setenv(
+        "WEBSHIELD_VERIFICATION_SECRET",
+        TEST_VERIFICATION_SECRET,
+    )
+    monkeypatch.setenv(
+        "WEBSHIELD_CREDENTIAL_VAULT_SECRET",
+        "api-vault-secret-that-is-at-least-32-characters",
+    )
+    engagement = make_test_engagement_receipt()
+    received = {}
+
+    def fake_login_session(credential_id, payload, vault_secret):
+        received["credential_id"] = credential_id
+        received["engagement_id"] = payload["engagement_id"]
+        return {
+            "session_id": "authenticated-session-id",
+            "status": "Session Cookie Observed",
+            "credential_values_returned": False,
+        }
+
+    monkeypatch.setattr(
+        "app.main.create_login_session",
+        fake_login_session,
+    )
+    response = client.post(
+        "/engagement/login-session",
+        headers={
+            "Authorization": f"Bearer {engagement['receipt']}"
+        },
+        json={
+            "domain": "example.com",
+            "credential_id": "credential-identifier-123",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["credential_values_returned"] is False
+    assert received["credential_id"] == "credential-identifier-123"
+
+
+def test_ownership_receipt_cannot_create_login_session(monkeypatch):
+    monkeypatch.setenv(
+        "WEBSHIELD_VERIFICATION_SECRET",
+        TEST_VERIFICATION_SECRET,
+    )
+    ownership = create_authorization_receipt(
+        "example.com", "DNS TXT", TEST_VERIFICATION_SECRET
+    )
+
+    response = client.post(
+        "/engagement/login-session",
+        headers={
+            "Authorization": f"Bearer {ownership['receipt']}"
+        },
+        json={
+            "domain": "example.com",
+            "credential_id": "credential-identifier-123",
+        },
+    )
+
+    assert response.status_code == 403
+
+
+def test_engagement_can_verify_protected_page(monkeypatch):
+    monkeypatch.setenv(
+        "WEBSHIELD_VERIFICATION_SECRET",
+        TEST_VERIFICATION_SECRET,
+    )
+    engagement = make_test_engagement_receipt()
+    monkeypatch.setattr(
+        "app.main.verify_protected_page",
+        lambda session_id, protected_url, payload: {
+            "status": "Verified",
+            "confidence": "High",
+            "page_content_returned": False,
+            "cookie_values_returned": False,
+        },
+    )
+
+    response = client.post(
+        "/engagement/protected-page/verify",
+        headers={
+            "Authorization": f"Bearer {engagement['receipt']}"
+        },
+        json={
+            "domain": "example.com",
+            "session_id": "authenticated-session-id",
+            "protected_url": "https://example.com/dashboard",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "Verified"
+    assert response.json()["page_content_returned"] is False
+
+
+def test_engagement_can_run_authenticated_crawl(monkeypatch):
+    monkeypatch.setenv(
+        "WEBSHIELD_VERIFICATION_SECRET",
+        TEST_VERIFICATION_SECRET,
+    )
+    engagement = make_test_engagement_receipt()
+    received = {}
+
+    def fake_authenticated_crawl(session_id, protected_url, payload, **kwargs):
+        received.update(kwargs)
+        return {
+            "name": "Read-Only Authenticated Crawler",
+            "pages_scanned": 4,
+            "forms_submitted": 0,
+            "state_changing_requests_sent": 0,
+        }
+
+    monkeypatch.setattr(
+        "app.main.run_authenticated_crawl",
+        fake_authenticated_crawl,
+    )
+    response = client.post(
+        "/engagement/authenticated-crawl",
+        headers={
+            "Authorization": f"Bearer {engagement['receipt']}"
+        },
+        json={
+            "domain": "example.com",
+            "session_id": "authenticated-session-id",
+            "protected_url": "https://example.com/dashboard",
+            "max_pages": 10,
+            "max_depth": 1,
+            "accept_medium_confidence": False,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["forms_submitted"] == 0
+    assert received["max_pages"] == 10
+    assert received["max_depth"] == 1

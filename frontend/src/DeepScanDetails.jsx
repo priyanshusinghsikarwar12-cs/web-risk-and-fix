@@ -99,6 +99,7 @@ function DeepScanDetails({ report }) {
   const cors = report.cors_configuration;
   const httpMethods = report.http_method_exposure;
   const subdomains = report.subdomains;
+  const hosting = report.hosting_context;
   const ports = report.open_ports;
   const advisories = report.javascript_advisories;
   const zap = report.zap_baseline;
@@ -382,6 +383,45 @@ function DeepScanDetails({ report }) {
 
 
       <ResultSection
+        title="Hosting and Infrastructure Context"
+        result={hosting}
+      >
+        <div className="deep-result-list">
+          <ResultItem
+            title={
+              hosting?.provider?.name ||
+              "Hosting provider not identified"
+            }
+            message={
+              hosting?.shared_infrastructure?.message ||
+              "WebShield could not determine whether the public infrastructure is shared."
+            }
+            status={
+              hosting?.shared_infrastructure?.status ||
+              "Not Determined"
+            }
+          >
+            <div className="deep-inline-details">
+              <span>
+                Category:{" "}
+                {hosting?.provider?.category || "Not identified"}
+              </span>
+
+              <span>
+                Provider confidence:{" "}
+                {hosting?.provider?.confidence || "Unavailable"}
+              </span>
+
+              <span>
+                {hosting?.address_count || 0} public addresses observed
+              </span>
+            </div>
+          </ResultItem>
+        </div>
+      </ResultSection>
+
+
+      <ResultSection
         title="Open Ports and Services"
         result={ports}
       >
@@ -395,12 +435,18 @@ function DeepScanDetails({ report }) {
               <ResultItem
                 key={port.port}
                 title={`${port.service} — port ${port.port}`}
-                message={port.message}
+                message={
+                  port.attribution?.status ===
+                  "Provider Edge - Origin Unconfirmed"
+                    ? port.attribution.message
+                    : port.message
+                }
                 status={port.status}
               >
                 <div className="deep-inline-details">
                   <span>
-                    Severity: {port.severity}
+                    Potential severity if origin-owned:{" "}
+                    {port.severity}
                   </span>
 
                   <span>
@@ -410,7 +456,21 @@ function DeepScanDetails({ report }) {
                   <span>
                     No banner or commands sent
                   </span>
+
+                  <span>
+                    Origin ownership:{" "}
+                    {port.attribution?.origin_confirmed
+                      ? "Confirmed"
+                      : "Not confirmed"}
+                  </span>
                 </div>
+
+                {port.attribution?.status ===
+                  "Provider Edge - Origin Unconfirmed" && (
+                  <p className="deep-scope-note">
+                    Service context: {port.message}
+                  </p>
+                )}
               </ResultItem>
             ))}
           </div>

@@ -64,12 +64,17 @@ def analyze_form_hygiene(forms: list) -> dict:
             "form_count": 0,
             "password_form_count": 0,
             "csrf_signal_count": 0,
+            "post_form_count": 0,
+            "csrf_review_count": 0,
+            "protected_post_form_count": 0,
             "score_eligible": False,
         }
 
     findings = []
     password_form_count = 0
     csrf_signal_count = 0
+    post_form_count = 0
+    csrf_review_count = 0
 
     for index, form in enumerate(forms, start=1):
         method = str(
@@ -102,6 +107,9 @@ def analyze_form_hygiene(forms: list) -> dict:
         if has_csrf_signal:
             csrf_signal_count += 1
 
+        if method == "POST":
+            post_form_count += 1
+
         if action_scheme == "http":
             findings.append({
                 "name": "Insecure Form Destination",
@@ -109,6 +117,14 @@ def analyze_form_hygiene(forms: list) -> dict:
                 "message": (
                     "This form may send information through "
                     "an unencrypted HTTP connection."
+                ),
+                "severity": "High",
+                "confidence": "High",
+                "vulnerability_confirmed": True,
+                "category": "Cryptographic Failures",
+                "remediation": (
+                    "Change the form action to HTTPS and confirm that "
+                    "HTTP requests redirect before accepting data."
                 ),
                 "form_number": index,
                 "page_url": page_url,
@@ -124,6 +140,14 @@ def analyze_form_hygiene(forms: list) -> dict:
                     "values could appear in URLs, browser "
                     "history, logs, or analytics."
                 ),
+                "severity": "High",
+                "confidence": "High",
+                "vulnerability_confirmed": True,
+                "category": "Authentication Failures",
+                "remediation": (
+                    "Submit passwords with POST over HTTPS and prevent "
+                    "credentials from appearing in URLs or logs."
+                ),
                 "form_number": index,
                 "page_url": page_url,
                 "action_url": action_url,
@@ -137,12 +161,22 @@ def analyze_form_hygiene(forms: list) -> dict:
                     "This password form appears to submit "
                     "information to a different hostname."
                 ),
+                "severity": "High",
+                "confidence": "Medium",
+                "vulnerability_confirmed": False,
+                "category": "Authentication Failures",
+                "remediation": (
+                    "Keep credential submission on an explicitly "
+                    "trusted same-organization endpoint and document "
+                    "any intentional identity-provider handoff."
+                ),
                 "form_number": index,
                 "page_url": page_url,
                 "action_url": action_url,
             })
 
         if method == "POST" and not has_csrf_signal:
+            csrf_review_count += 1
             findings.append({
                 "name": "CSRF Protection Needs Review",
                 "status": "Review",
@@ -151,6 +185,15 @@ def analyze_form_hygiene(forms: list) -> dict:
                     "POST form. The application may still "
                     "protect requests through headers, "
                     "cookies, or JavaScript."
+                ),
+                "severity": "Medium",
+                "confidence": "Low",
+                "vulnerability_confirmed": False,
+                "category": "Broken Access Control",
+                "remediation": (
+                    "Confirm that the endpoint validates an anti-CSRF "
+                    "token, a trusted custom request header, or an "
+                    "equivalent framework protection."
                 ),
                 "form_number": index,
                 "page_url": page_url,
@@ -178,6 +221,14 @@ def analyze_form_hygiene(forms: list) -> dict:
                         "The password field does not clearly "
                         "declare whether it expects a current "
                         "or new password."
+                    ),
+                    "severity": "Low",
+                    "confidence": "Medium",
+                    "vulnerability_confirmed": False,
+                    "category": "Login Form Security",
+                    "remediation": (
+                        "Declare current-password or new-password so "
+                        "password managers handle the field safely."
                     ),
                     "form_number": index,
                     "page_url": page_url,
@@ -216,6 +267,12 @@ def analyze_form_hygiene(forms: list) -> dict:
         "form_count": len(forms),
         "password_form_count": password_form_count,
         "csrf_signal_count": csrf_signal_count,
+        "post_form_count": post_form_count,
+        "csrf_review_count": csrf_review_count,
+        "protected_post_form_count": max(
+            post_form_count - csrf_review_count,
+            0,
+        ),
         "score_eligible": False,
         "scope": (
             "HTML forms discovered by the verified crawler"

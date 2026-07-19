@@ -294,6 +294,51 @@ def test_tcp_connection(
             connection.close()
 
 
+def build_port_attribution(hosting_context):
+    hosting_context = hosting_context or {}
+    sharing = hosting_context.get(
+        "shared_infrastructure",
+        {},
+    )
+    provider = hosting_context.get("provider", {})
+    sharing_status = sharing.get("status")
+
+    if sharing_status in {
+        "Shared Edge Observed",
+        "Likely Shared",
+    }:
+        provider_name = provider.get("name") or (
+            "the detected hosting provider"
+        )
+
+        return {
+            "status": "Provider Edge - Origin Unconfirmed",
+            "origin_confirmed": False,
+            "provider": provider.get("name"),
+            "confidence": provider.get(
+                "confidence",
+                "Unavailable",
+            ),
+            "message": (
+                f"The tested addresses appear to belong to "
+                f"{provider_name}'s shared infrastructure. "
+                "The responding service cannot yet be attributed "
+                "to the website owner's origin server."
+            ),
+        }
+
+    return {
+        "status": "Origin Attribution Not Established",
+        "origin_confirmed": False,
+        "provider": provider.get("name"),
+        "confidence": "None",
+        "message": (
+            "WebShield confirmed a TCP connection, but a connection "
+            "alone does not prove who operates the responding service."
+        ),
+    }
+
+
 def scan_open_ports(
     domain: str,
     timeout: float = 0.75,
@@ -301,6 +346,7 @@ def scan_open_ports(
     resolver=socket.getaddrinfo,
     connector=socket.create_connection,
     ports=None,
+    hosting_context=None,
 ):
     safe_domain = clean_domain(domain)
 
@@ -357,9 +403,22 @@ def scan_open_ports(
                 ).append(address)
 
     checks = []
+    attribution = build_port_attribution(
+        hosting_context,
+    )
+    shared_provider_edge = (
+        attribution["status"]
+        == "Provider Edge - Origin Unconfirmed"
+    )
 
     for port in sorted(open_results):
         definition = selected_ports[port]
+
+        check_status = (
+            "Attribution Required"
+            if shared_provider_edge
+            else definition["status"]
+        )
 
         checks.append({
             "name": (
@@ -368,7 +427,8 @@ def scan_open_ports(
             ),
             "port": port,
             "service": definition["service"],
-            "status": definition["status"],
+            "status": check_status,
+            "service_status": definition["status"],
             "severity": definition["severity"],
             "message": definition["message"],
             "addresses": sorted(
@@ -377,9 +437,18 @@ def scan_open_ports(
             "connection_confirmed": True,
             "banner_collected": False,
             "vulnerability_confirmed": False,
+            "attribution": attribution.copy(),
         })
 
-    if any(
+    if checks and shared_provider_edge:
+        status = "Attribution Required"
+        message = (
+            "WebShield confirmed network connections on shared "
+            "provider-edge addresses. These are observations, "
+            "not confirmed origin-server exposures."
+        )
+
+    elif any(
         check["status"] == "Needs Attention"
         for check in checks
     ):
@@ -426,16 +495,13 @@ def scan_open_ports(
             len(selected_ports) * len(addresses)
         ),
         "confidence": "Medium",
+        "attribution": attribution,
         "scope": (
             "TCP connection checks against a fixed "
             "verified-only port list"
         ),
         "score_eligible": False,
-        "important_note": (
-            "If this hostname uses a CDN or reverse proxy, "
-            "the observed ports may belong to that provider "
-            "rather than the website's origin server."
-        ),
+        "important_note": attribution["message"],
         "safety": {
             "connection_only": True,
             "banner_grabbing": False,

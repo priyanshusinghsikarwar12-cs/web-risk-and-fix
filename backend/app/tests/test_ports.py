@@ -175,3 +175,60 @@ def test_invalid_worker_limit_is_rejected():
             max_workers=100,
             resolver=public_resolver,
         )
+
+
+def test_shared_edge_port_requires_origin_attribution():
+    def connector(target, timeout):
+        return FakeConnection()
+
+    result = scan_open_ports(
+        "example.com",
+        resolver=public_resolver,
+        connector=connector,
+        ports={
+            3306: CONTROLLED_PORTS[3306],
+        },
+        hosting_context={
+            "provider": {
+                "name": "Cloudflare",
+                "confidence": "High",
+            },
+            "shared_infrastructure": {
+                "status": "Shared Edge Observed",
+            },
+        },
+    )
+
+    check = result["checks"][0]
+
+    assert result["status"] == "Attribution Required"
+    assert check["status"] == "Attribution Required"
+    assert check["service_status"] == "Needs Attention"
+    assert check["severity"] == "High"
+    assert check["vulnerability_confirmed"] is False
+    assert check["attribution"]["provider"] == "Cloudflare"
+    assert check["attribution"]["origin_confirmed"] is False
+
+
+def test_unknown_hosting_keeps_service_review_status():
+    def connector(target, timeout):
+        return FakeConnection()
+
+    result = scan_open_ports(
+        "example.com",
+        resolver=public_resolver,
+        connector=connector,
+        ports={
+            8080: CONTROLLED_PORTS[8080],
+        },
+        hosting_context={
+            "provider": {"name": None},
+            "shared_infrastructure": {
+                "status": "Not Determined",
+            },
+        },
+    )
+
+    assert result["status"] == "Review"
+    assert result["checks"][0]["status"] == "Review"
+    assert result["checks"][0]["service_status"] == "Review"

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import DeepScanDetails from "./DeepScanDetails";
+import VulnerabilityOverview from "./VulnerabilityOverview";
+import AuthenticatedTestingPanel from "./AuthenticatedTestingPanel";
 
 
 const API_URL = "http://127.0.0.1:8000";
@@ -34,6 +36,17 @@ function DeepScanPanel({ domain }) {
     useState("");
   const [authorizationExpiresAt, setAuthorizationExpiresAt] =
     useState(null);
+  const [engagementReceipt, setEngagementReceipt] =
+    useState("");
+  const [engagementProfile, setEngagementProfile] =
+    useState(null);
+  const [clientReference, setClientReference] =
+    useState("");
+  const [authorizedBy, setAuthorizedBy] = useState("");
+  const [environment, setEnvironment] =
+    useState("production");
+  const [authorizationConfirmed, setAuthorizationConfirmed] =
+    useState(false);
   const [deepReport, setDeepReport] = useState(null);
 
   const [creatingChallenge, setCreatingChallenge] =
@@ -41,6 +54,8 @@ function DeepScanPanel({ domain }) {
   const [checkingProof, setCheckingProof] =
     useState(false);
   const [deepScanning, setDeepScanning] =
+    useState(false);
+  const [creatingEngagement, setCreatingEngagement] =
     useState(false);
   const [error, setError] = useState("");
   const [devAdminToken, setDevAdminToken] =
@@ -52,6 +67,28 @@ function DeepScanPanel({ domain }) {
     setMethod("dns");
     setAuthorizationReceipt("");
     setAuthorizationExpiresAt(null);
+    const storageKey = `webshield-engagement:${domain.toLowerCase()}`;
+    const storedProfile = sessionStorage.getItem(storageKey);
+    if (storedProfile) {
+      try {
+        const parsed = JSON.parse(storedProfile);
+        if (parsed.expires_at * 1000 > Date.now()) {
+          setEngagementReceipt(parsed.receipt);
+          setEngagementProfile(parsed);
+        } else {
+          sessionStorage.removeItem(storageKey);
+          setEngagementReceipt("");
+          setEngagementProfile(null);
+        }
+      } catch {
+        sessionStorage.removeItem(storageKey);
+        setEngagementReceipt("");
+        setEngagementProfile(null);
+      }
+    } else {
+      setEngagementReceipt("");
+      setEngagementProfile(null);
+    }
     setDeepReport(null);
     setError("");
   }, [domain]);
@@ -91,6 +128,148 @@ function DeepScanPanel({ domain }) {
       setError(requestError.message);
     } finally {
       setCreatingChallenge(false);
+    }
+  };
+
+
+  const createEngagement = async () => {
+    if (!authorizationReceipt) {
+      setError("Verify domain ownership before creating the engagement.");
+      return;
+    }
+    if (!authorizationConfirmed) {
+      setError("Confirm that the named client authorized this assessment.");
+      return;
+    }
+
+    setError("");
+    setCreatingEngagement(true);
+
+    try {
+      const requestHeaders = {
+        "Content-Type": "application/json",
+      };
+      requestHeaders.Authorization = `Bearer ${authorizationReceipt}`;
+
+      const response = await fetch(
+        `${API_URL}/engagement/profile`,
+        {
+          method: "POST",
+          headers: requestHeaders,
+          body: JSON.stringify({
+            domain,
+            client_reference: clientReference,
+            authorized_by: authorizedBy,
+            environment,
+            max_pages: 25,
+            max_depth: 2,
+            include_zap: false,
+            zap_spider_minutes: 1,
+            zap_maximum_minutes: 5,
+            approved_scanners: [
+              "crawler",
+              "exposure_checks",
+              "cors",
+              "http_methods",
+              "subdomains",
+              "ports",
+              "javascript_advisories",
+            ],
+            authorization_confirmed: true,
+          }),
+        }
+      );
+      const data = await readResponse(response);
+      setEngagementReceipt(data.receipt);
+      setEngagementProfile(data);
+      sessionStorage.setItem(
+        `webshield-engagement:${domain.toLowerCase()}`,
+        JSON.stringify(data)
+      );
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setCreatingEngagement(false);
+    }
+  };
+
+
+  const runAdminTestScan = async () => {
+    const cleanAdminToken = devAdminToken.trim();
+    if (!cleanAdminToken) {
+      setError("Enter the local development admin token first.");
+      return;
+    }
+
+    setError("");
+    setCreatingEngagement(true);
+    setDeepScanning(true);
+    setDeepReport(null);
+
+    try {
+      const profileResponse = await fetch(
+        `${API_URL}/engagement/profile`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-WebShield-Admin-Token": cleanAdminToken,
+          },
+          body: JSON.stringify({
+            domain,
+            client_reference: "Local development test",
+            authorized_by: "WebShield local administrator",
+            environment: "development",
+            max_pages: 25,
+            max_depth: 2,
+            include_zap: false,
+            zap_spider_minutes: 1,
+            zap_maximum_minutes: 5,
+            approved_scanners: [
+              "crawler",
+              "exposure_checks",
+              "cors",
+              "http_methods",
+              "subdomains",
+              "ports",
+              "javascript_advisories",
+            ],
+            authorization_confirmed: true,
+          }),
+        }
+      );
+      const profile = await readResponse(profileResponse);
+      setEngagementReceipt(profile.receipt);
+      setEngagementProfile(profile);
+      sessionStorage.setItem(
+        `webshield-engagement:${domain.toLowerCase()}`,
+        JSON.stringify(profile)
+      );
+
+      const scanResponse = await fetch(
+        `${API_URL}/deep-scan/run`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${profile.receipt}`,
+          },
+          body: JSON.stringify({
+            domain,
+            max_pages: 25,
+            max_depth: 2,
+            include_zap: false,
+            zap_spider_minutes: 1,
+            zap_maximum_minutes: 5,
+          }),
+        }
+      );
+      setDeepReport(await readResponse(scanResponse));
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setCreatingEngagement(false);
+      setDeepScanning(false);
     }
   };
 
@@ -152,7 +331,7 @@ function DeepScanPanel({ domain }) {
     devAdminToken.trim();
 
   if (
-    !authorizationReceipt
+    !engagementReceipt
     && !cleanAdminToken
   ) {
     setError(
@@ -170,9 +349,9 @@ function DeepScanPanel({ domain }) {
   "Content-Type": "application/json",
 };
 
-if (authorizationReceipt) {
+if (engagementReceipt) {
   requestHeaders.Authorization = (
-    `Bearer ${authorizationReceipt}`
+    `Bearer ${engagementReceipt}`
   );
 } else {
   requestHeaders[
@@ -236,7 +415,7 @@ if (authorizationReceipt) {
           </p>
         </div>
 
-        {!challenge && (
+        {!challenge && !engagementReceipt && (
           <button
             className="deep-primary-button"
             onClick={createChallenge}
@@ -249,17 +428,12 @@ if (authorizationReceipt) {
         )}
       </div>
 {import.meta.env.DEV &&
-  !authorizationReceipt && (
+  !authorizationReceipt &&
+  !engagementReceipt && (
     <details className="dev-admin-panel">
       <summary>
         Local development admin testing
       </summary>
-
-      <p>
-        This option works only from this computer,
-        in development mode, and for domains listed
-        in the backend allowlist.
-      </p>
 
       <input
         type="password"
@@ -273,14 +447,14 @@ if (authorizationReceipt) {
 
       <button
         className="deep-primary-button"
-        onClick={startDeepScan}
+        onClick={runAdminTestScan}
         disabled={
-          deepScanning ||
+          deepScanning || creatingEngagement ||
           !devAdminToken.trim()
         }
       >
         {deepScanning
-          ? "Running test scan..."
+          ? "Running admin test scan..."
           : "Run Admin Test Scan"}
       </button>
     </details>
@@ -400,20 +574,102 @@ if (authorizationReceipt) {
       )}
 
 
-      {authorizationReceipt && (
-        <div className="verified-domain">
-          <div>
-            <span className="verified-badge">
-              Ownership verified
-            </span>
-
-            <h4>{domain}</h4>
-
+      {authorizationReceipt && !engagementReceipt && (
+        <div className="engagement-setup">
+          <div className="engagement-setup-heading">
+            <span className="verified-badge">Ownership verified</span>
+            <h4>Set the assessment rules once</h4>
             <p>
-              Deep-scan permission expires:{" "}
-              {formatExpiry(
-                authorizationExpiresAt
-              )}
+              These signed rules control this engagement. WebShield will
+              reuse them for scans in this browser session.
+            </p>
+          </div>
+
+          <div className="engagement-fields">
+            <label>
+              Client or approval reference
+              <input
+                value={clientReference}
+                onChange={(event) => setClientReference(event.target.value)}
+                placeholder="Example: Client website assessment #001"
+              />
+            </label>
+
+            <label>
+              Authorized by
+              <input
+                value={authorizedBy}
+                onChange={(event) => setAuthorizedBy(event.target.value)}
+                placeholder="Name or role of approving person"
+              />
+            </label>
+
+            <label>
+              Environment
+              <select
+                value={environment}
+                onChange={(event) => setEnvironment(event.target.value)}
+              >
+                <option value="production">Production website</option>
+                <option value="staging">Staging website</option>
+                <option value="development">Development website</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="engagement-scope-summary">
+            <strong>Approved safe deep checks</strong>
+            <p>
+              Up to 25 pages and depth 2: crawling, exposure checks,
+              CORS, HTTP methods, subdomains, ports, and JavaScript advisories.
+              ZAP remains off until Docker is available.
+            </p>
+          </div>
+
+          <label className="engagement-confirmation">
+            <input
+              type="checkbox"
+              checked={authorizationConfirmed}
+              onChange={(event) =>
+                setAuthorizationConfirmed(event.target.checked)
+              }
+            />
+            I confirm that the named client authorized WebShield to perform
+            these checks on this domain.
+          </label>
+
+          <button
+            className="deep-primary-button"
+            onClick={createEngagement}
+            disabled={
+              creatingEngagement ||
+              !clientReference.trim() ||
+              !authorizedBy.trim() ||
+              !authorizationConfirmed
+            }
+          >
+            {creatingEngagement
+              ? "Signing engagement..."
+              : "Create Engagement Profile"}
+          </button>
+
+          <p className="verification-expiry">
+            Ownership proof expires: {formatExpiry(authorizationExpiresAt)}
+          </p>
+        </div>
+      )}
+
+      {engagementReceipt && engagementProfile && (
+        <div className="verified-domain engagement-ready">
+          <div>
+            <span className="verified-badge">Engagement ready</span>
+            <h4>{engagementProfile.client_reference}</h4>
+            <p>
+              {domain} · {engagementProfile.environment} · authorized by{" "}
+              {engagementProfile.authorized_by}
+            </p>
+            <p>
+              Signed limits expire: {formatExpiry(engagementProfile.expires_at)}
             </p>
           </div>
 
@@ -422,11 +678,16 @@ if (authorizationReceipt) {
             onClick={startDeepScan}
             disabled={deepScanning}
           >
-            {deepScanning
-              ? "Running deep scan..."
-              : "Start Deep Scan"}
+            {deepScanning ? "Running deep scan..." : "Start Deep Scan"}
           </button>
         </div>
+      )}
+
+      {engagementReceipt && (
+        <AuthenticatedTestingPanel
+          domain={domain}
+          engagementReceipt={engagementReceipt}
+        />
       )}
 
 
@@ -476,74 +737,22 @@ advisories may take a few minutes.
           </div>
 
 
-          <div className="deep-summary-grid">
-            <div>
-              <strong>
-                {deepReport.finding_summary
-                  ?.pages_crawled || 0}
-              </strong>
-              <span>Pages crawled</span>
-            </div>
+          <VulnerabilityOverview report={deepReport} />
 
-            <div>
-              <strong>
-                {deepReport.finding_summary
-                  ?.sensitive_exposures || 0}
-              </strong>
-              <span>Exposures</span>
-            </div>
+          <details className="technical-evidence-disclosure">
+            <summary>
+              <span>
+                Technical observations and complete scanner evidence
+                <small>
+                  Pages, subdomains, hosting, ports, and raw scanner results
+                </small>
+              </span>
 
-<div>
-  <strong>
-    {deepReport.finding_summary
-      ?.cors_findings || 0}
-  </strong>
+              <strong>View details</strong>
+            </summary>
 
-  <span>CORS findings</span>
-</div>
-
-<div>
-  <strong>
-    {deepReport.finding_summary
-      ?.http_method_findings || 0}
-  </strong>
-
-  <span>HTTP method findings</span>
-</div>
-
-            <div>
-              <strong>
-                {deepReport.finding_summary
-                  ?.subdomains_discovered || 0}
-              </strong>
-              <span>Subdomains</span>
-            </div>
-
-            <div>
-              <strong>
-                {deepReport.finding_summary
-                  ?.open_ports || 0}
-              </strong>
-              <span>Open ports</span>
-            </div>
-
-            <div>
-              <strong>
-                {deepReport.finding_summary
-                  ?.javascript_advisories || 0}
-              </strong>
-              <span>JS advisories</span>
-            </div>
-
-            <div>
-              <strong>
-                {deepReport.finding_summary
-                  ?.zap_findings || 0}
-              </strong>
-              <span>ZAP findings</span>
-            </div>
-          </div>
-          <DeepScanDetails report={deepReport} />
+            <DeepScanDetails report={deepReport} />
+          </details>
 
 
           {deepReport.scan_failures?.length > 0 && (

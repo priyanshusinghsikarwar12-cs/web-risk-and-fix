@@ -133,6 +133,7 @@ def check_http_method_exposure(
                     "intentional and restricted."
                 ),
                 "vulnerability_confirmed": False,
+                "validation": "Requires Confirmation",
             })
 
         for method in review_methods:
@@ -148,6 +149,7 @@ def check_http_method_exposure(
                     "protected by authorization."
                 ),
                 "vulnerability_confirmed": False,
+                "validation": "Requires Confirmation",
             })
 
         if high_risk_methods:

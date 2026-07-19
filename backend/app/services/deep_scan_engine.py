@@ -26,6 +26,12 @@ from app.utils.domain import clean_domain
 from app.deep_scanners.http_methods import (
     check_http_method_exposure,
 )
+from app.scanners.hosting_context import (
+    check_hosting_context,
+)
+from app.services.vulnerability_report import (
+    build_vulnerability_report,
+)
 
 
 def unavailable_result(
@@ -122,6 +128,7 @@ def run_verified_deep_scan(
         "http_methods": check_http_method_exposure,
         "subdomains": discover_subdomains,
         "ports": scan_open_ports,
+        "hosting_context": check_hosting_context,
         "javascript_advisories": (
             check_javascript_advisories
         ),
@@ -187,12 +194,47 @@ def run_verified_deep_scan(
     if failure:
         failures.append(failure)
 
+    hosting_context, failure = run_deep_scanner(
+        "Hosting and Infrastructure Context",
+        scanner_functions["hosting_context"],
+        safe_domain,
+        fallback={
+            "name": "Hosting and Infrastructure Context",
+            "domain": safe_domain,
+            "status": "Unavailable",
+            "message": (
+                "Hosting context could not be refreshed for "
+                "this deep scan."
+            ),
+            "provider": {
+                "name": None,
+                "category": "Not identified",
+                "confidence": "None",
+                "evidence": [],
+            },
+            "addresses": [],
+            "address_count": 0,
+            "shared_infrastructure": {
+                "status": "Not Determined",
+                "message": (
+                    "Infrastructure sharing was not determined."
+                ),
+                "confidence": "None",
+            },
+            "score_eligible": False,
+        },
+    )
+
+    if failure:
+        failures.append(failure)
+
     ports, failure = run_deep_scanner(
         "Open Ports and Services",
         scanner_functions["ports"],
         safe_domain,
         timeout=0.75,
         max_workers=20,
+        hosting_context=hosting_context,
     )
 
     if failure:
@@ -249,7 +291,25 @@ def run_verified_deep_scan(
         else "Partial"
     )
 
+    vulnerability_report = build_vulnerability_report(
+        crawler,
+        exposures,
+        cors_configuration,
+        http_method_exposure,
+        javascript_advisories,
+        zap_baseline,
+    )
+
     finding_summary = {
+        "vulnerabilities": vulnerability_report[
+            "summary"
+        ]["total"],
+        "critical": vulnerability_report["summary"][
+            "critical"
+        ],
+        "high": vulnerability_report["summary"]["high"],
+        "medium": vulnerability_report["summary"]["medium"],
+        "low": vulnerability_report["summary"]["low"],
         "pages_crawled": crawler.get(
             "pages_scanned",
             0,
@@ -304,11 +364,13 @@ def run_verified_deep_scan(
         "authorization_required": True,
         "zap_requested": include_zap,
         "finding_summary": finding_summary,
+        "vulnerability_report": vulnerability_report,
         "crawler": crawler,
         "sensitive_exposures": exposures,
         "cors_configuration": cors_configuration,
         "http_method_exposure": http_method_exposure,
         "subdomains": subdomains,
+        "hosting_context": hosting_context,
         "open_ports": ports,
         "javascript_advisories": (
             javascript_advisories

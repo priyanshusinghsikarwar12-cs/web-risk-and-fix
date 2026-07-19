@@ -3,8 +3,10 @@ from datetime import datetime
 
 from app.scanners.connectivity import check_connectivity
 from app.scanners.dns import check_dns_records
+from app.scanners.domain_trust import check_domain_trust
 from app.scanners.headers import check_security_headers
 from app.scanners.health import check_website_health
+from app.scanners.hosting_context import check_hosting_context
 from app.scanners.ssl import check_ssl_certificate
 from app.scanners.technologies import detect_technologies
 from app.services.fix_guidance import add_fix_guidance
@@ -169,9 +171,11 @@ def run_full_scan(
             "ssl_certificate": None,
             "tls_protocols": None,
             "dns_records": None,
+            "domain_trust": None,
             "dkim": None,
             "domain_registration": None,
             "technologies": None,
+            "hosting_context": None,
             "reputation": None,
             "mixed_content": None,
             "privacy_signals": None,
@@ -385,6 +389,27 @@ def run_full_scan(
     if failure:
         failures.append(failure)
 
+    domain_trust, failure = run_scanner(
+        "Domain Trust",
+        check_domain_trust,
+        domain,
+        {
+            "name": "Domain Trust",
+            "domain": domain,
+            "status": "Unavailable",
+            "message": (
+                "The DNSSEC and CAA checks could not be completed."
+            ),
+            "confidence": "Unavailable",
+            "checks": [],
+            "scope": "Public DS, DNSKEY, and CAA records only",
+            "score_eligible": False,
+        },
+    )
+
+    if failure:
+        failures.append(failure)
+
     technologies, failure = run_scanner(
         "Technology Detection",
         bind_homepage_response(
@@ -397,6 +422,47 @@ def run_full_scan(
             "url": f"https://{domain}",
             "checks": [],
             "error": "scan_failed",
+        },
+    )
+
+    if failure:
+        failures.append(failure)
+
+    hosting_context, failure = run_scanner(
+        "Hosting and Infrastructure Context",
+        bind_homepage_response(
+            check_hosting_context,
+            homepage_response,
+        ),
+        domain,
+        {
+            "name": "Hosting and Infrastructure Context",
+            "domain": domain,
+            "status": "Unavailable",
+            "message": (
+                "The hosting and infrastructure context check "
+                "could not be completed."
+            ),
+            "provider": {
+                "name": None,
+                "category": "Not identified",
+                "confidence": "None",
+                "evidence": [],
+            },
+            "addresses": [],
+            "address_count": 0,
+            "shared_infrastructure": {
+                "status": "Not Determined",
+                "message": (
+                    "Hosting sharing could not be evaluated."
+                ),
+                "confidence": "None",
+            },
+            "attribution_note": (
+                "Network findings require origin confirmation."
+            ),
+            "scope": "Public DNS and initial homepage response only",
+            "score_eligible": False,
         },
     )
 
@@ -549,10 +615,12 @@ def run_full_scan(
         "tls_protocols": tls_protocols,
         "mixed_content": mixed_content,
         "dns_records": dns_records,
+        "domain_trust": domain_trust,
         "privacy_signals": privacy_signals,
         "dkim": dkim,
         "domain_registration": domain_registration,
         "technologies": technologies,
+        "hosting_context": hosting_context,
         "recommendations": recommendations,
         "reputation": reputation,
         "script_inventory": script_inventory,

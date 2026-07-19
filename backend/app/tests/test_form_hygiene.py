@@ -92,6 +92,15 @@ def test_missing_csrf_signal_requires_review():
         "CSRF" in check["name"]
         for check in result["checks"]
     )
+    csrf = next(
+        check
+        for check in result["checks"]
+        if "CSRF" in check["name"]
+    )
+    assert csrf["severity"] == "Medium"
+    assert csrf["confidence"] == "Low"
+    assert csrf["vulnerability_confirmed"] is False
+    assert result["csrf_review_count"] == 1
 
 
 def test_csrf_field_is_recognized():
@@ -108,6 +117,7 @@ def test_csrf_field_is_recognized():
     result = analyze_form_hygiene([form])
 
     assert result["csrf_signal_count"] == 1
+    assert result["protected_post_form_count"] == 1
     assert result["status"] == "Protected"
 
 

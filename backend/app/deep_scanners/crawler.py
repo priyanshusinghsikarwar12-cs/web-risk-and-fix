@@ -394,6 +394,9 @@ def crawl_verified_site(
     max_pages: int = 25,
     max_depth: int = 2,
     delay_seconds: float = 0.2,
+    start_url: str | None = None,
+    session=None,
+    authenticated: bool = False,
 ):
     safe_domain = clean_domain(domain)
 
@@ -415,7 +418,18 @@ def crawl_verified_site(
             "between 0 and 2 seconds."
         )
 
-    start_url = f"https://{safe_domain}/"
+    start_url = start_url or f"https://{safe_domain}/"
+    start_location = urlsplit(start_url)
+    if (
+        start_location.scheme.lower() != "https"
+        or (start_location.hostname or "").lower() != safe_domain
+        or start_location.username
+        or start_location.password
+        or start_location.port not in (None, 443)
+    ):
+        raise ValueError(
+            "The crawler start URL must use the verified HTTPS hostname."
+        )
     queue = deque([(start_url, 0)])
     queued_urls = {start_url}
     visited_urls = set()
@@ -438,11 +452,13 @@ def crawl_verified_site(
         visited_urls.add(current_url)
 
         try:
-            response = safe_get(
-                current_url,
-                timeout=10,
-                max_bytes=500000,
-            )
+            request_options = {
+                "timeout": 10,
+                "max_bytes": 500000,
+            }
+            if session is not None:
+                request_options["session"] = session
+            response = safe_get(current_url, **request_options)
 
             final_url = response.url
             final_location = urlsplit(final_url)
@@ -576,6 +592,8 @@ def crawl_verified_site(
     return {
         "name": "Verified Application Crawler",
         "domain": safe_domain,
+        "authenticated": bool(authenticated),
+        "start_url": start_url,
         "status": status,
         "message": message,
         "pages_scanned": len(pages),

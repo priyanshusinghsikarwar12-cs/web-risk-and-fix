@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import "./App.css";
+import SourceScanPanel from "./SourceScanPanel";
 import DeepScanPanel from "./DeepScanPanel";
 
 function App() {
@@ -148,20 +149,53 @@ function App() {
   return (
     <main className="app">
       <nav className="top-nav">
-        <div className="webshield-logo">WebShield</div>
+        <div className="webshield-brand">
+          <span className="webshield-mark" aria-hidden="true">W</span>
+          <div>
+            <div className="webshield-logo">WebShield</div>
+            <span className="webshield-tagline">Security made understandable</span>
+          </div>
+        </div>
+
+        <span className="nav-status">
+          <span aria-hidden="true"></span>
+          Assessment workspace
+        </span>
       </nav>
 
       <section className="hero">
+        <div className="hero-glow hero-glow-left" aria-hidden="true"></div>
+        <div className="hero-glow hero-glow-right" aria-hidden="true"></div>
+
         <div className="hero-intro">
-          <h1>Know your website. Fix the risk.</h1>
+          <span className="hero-eyebrow">Website security, without the guesswork</span>
+
+          <h1>
+            Know your website.
+            <span> Fix the risk.</span>
+          </h1>
 
           <p>
-            Understand your website security without the technical
-            confusion.
+            Find the security issues that matter, understand their real
+            impact, and get a clear plan to fix them.
           </p>
+
+          <div className="hero-assurances" aria-label="WebShield scan qualities">
+            <span>Safe checks</span>
+            <span>Plain-English results</span>
+            <span>Prioritized fixes</span>
+          </div>
         </div>
 
         <div className="search-area">
+          <div className="scan-area-heading">
+            <div>
+              <span className="scan-area-kicker">Start here</span>
+              <strong>Scan a public website</strong>
+            </div>
+            <span className="scan-area-scope">Normal security scan</span>
+          </div>
+
           <div className="scan-box">
             <input
               type="text"
@@ -183,6 +217,8 @@ function App() {
               {loading ? "Scanning..." : "Scan Website"}
             </button>
           </div>
+
+          <SourceScanPanel />
           
           <details className="email-scan-options">
             <summary>
@@ -266,12 +302,25 @@ function App() {
   <p>{report.summary}</p>
 </div>
             </div>
-<DeepScanPanel
-  key={report.domain}
-  domain={report.domain || domain}
-/>                       
             <div className="recommendations">
-              <h3>What should you fix first?</h3>
+              <h3>
+                {report.recommendations?.length
+                  ? "Security findings to fix first"
+                  : "No priority fix identified"}
+              </h3>
+
+              {!report.recommendations?.length && (
+                <div className="tested-scope-clear">
+                  <strong>
+                    No priority recommendation in this scan
+                  </strong>
+                  <p>
+                    WebShield did not identify a scored issue in the
+                    completed normal checks. Open technical details to
+                    review coverage and informational observations.
+                  </p>
+                </div>
+              )}
 
               {report.recommendations?.map((item, index) => (
                 <div className="recommendation-card" key={index}>
@@ -338,6 +387,26 @@ function App() {
                 </div>
               ))}
             </div>
+
+            <DeepScanPanel
+              key={report.domain}
+              domain={report.domain || domain}
+            />
+
+            <details className="normal-technical-disclosure">
+              <summary>
+                <span>
+                  Technical details and passed checks
+                  <small>
+                    TLS, DNS, email, hosting, scripts, privacy, and
+                    technology evidence
+                  </small>
+                </span>
+
+                <strong>View details</strong>
+              </summary>
+
+              <div className="normal-technical-content">
 
             <div className="status-grid">
               <div className="status-card">
@@ -1140,6 +1209,172 @@ function App() {
               </div>
             </div>
 
+            {report.domain_trust && (
+              <div className="report-section">
+                <h3>Domain Trust</h3>
+
+                <p className="section-summary">
+                  {report.domain_trust.message}
+                </p>
+
+                <div className="protection-list">
+                  {report.domain_trust.checks?.map(
+                    (check, index) => (
+                      <div
+                        className="protection-item"
+                        key={index}
+                      >
+                        <div>
+                          <strong>{check.name}</strong>
+                          <p>{check.message}</p>
+
+                          <div className="public-file-details">
+                            <span>
+                              Technical control: {check.technical_name}
+                            </span>
+
+                            {check.technical_name === "DNSSEC" && (
+                              <>
+                                <span>
+                                  DS records: {check.evidence?.ds_record_count || 0}
+                                </span>
+                                <span>
+                                  DNSKEY records: {check.evidence?.dnskey_record_count || 0}
+                                </span>
+                              </>
+                            )}
+
+                            {check.technical_name === "CAA" && (
+                              <>
+                                <span>
+                                  Policy: {check.evidence?.policy_summary || "Unavailable"}
+                                </span>
+                                <span>
+                                  Standard certificates:{" "}
+                                  {check.evidence?.standard_certificate_policy || "Unavailable"}
+                                </span>
+                                <span>
+                                  Wildcard certificates:{" "}
+                                  {check.evidence?.wildcard_certificate_policy || "Unavailable"}
+                                </span>
+                                <span>
+                                  Named authorities:{" "}
+                                  {check.evidence?.authorized_authorities?.length
+                                    ? check.evidence.authorized_authorities.join(", ")
+                                    : "None"}
+                                </span>
+                              </>
+                            )}
+                          </div>
+
+                          <p className="scan-limitation">
+                            {check.limitation}
+                          </p>
+                        </div>
+
+                        <span
+                          className={
+                            check.status === "Configured"
+                              ? "status-protected"
+                              : check.status === "Needs Review"
+                                ? "status-attention"
+                                : "status-neutral"
+                          }
+                        >
+                          {check.status}
+                        </span>
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
+
+            {report.hosting_context && (
+              <div className="report-section">
+                <h3>Hosting and Shared Infrastructure</h3>
+
+                <p className="section-summary">
+                  {report.hosting_context.message}
+                </p>
+
+                <div className="protection-list">
+                  <div className="protection-item">
+                    <div>
+                      <strong>
+                        {report.hosting_context.provider?.name ||
+                          "Hosting provider not identified"}
+                      </strong>
+
+                      <p>
+                        {report.hosting_context.provider?.category ||
+                          "Provider category unavailable"}
+                      </p>
+
+                      <div className="public-file-details">
+                        <span>
+                          Confidence:{" "}
+                          {report.hosting_context.provider?.confidence ||
+                            "Unavailable"}
+                        </span>
+
+                        <span>
+                          {report.hosting_context.address_count || 0}{" "}
+                          public addresses observed
+                        </span>
+                      </div>
+                    </div>
+
+                    <span className="status-observed">
+                      {report.hosting_context.status}
+                    </span>
+                  </div>
+
+                  <div className="protection-item">
+                    <div>
+                      <strong>Infrastructure sharing</strong>
+
+                      <p>
+                        {
+                          report.hosting_context.shared_infrastructure
+                            ?.message
+                        }
+                      </p>
+                    </div>
+
+                    <span className="status-observed">
+                      {report.hosting_context.shared_infrastructure
+                        ?.status || "Not Determined"}
+                    </span>
+                  </div>
+
+                  {report.hosting_context.addresses?.map((item) => (
+                    <div
+                      className="protection-item"
+                      key={item.address}
+                    >
+                      <div>
+                        <strong>{item.address}</strong>
+                        <p>
+                          {item.reverse_dns
+                            ? `Reverse DNS: ${item.reverse_dns}`
+                            : "No public reverse-DNS name was observed."}
+                        </p>
+                      </div>
+
+                      <span className="status-neutral">
+                        {item.version}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="scope-note">
+                  {report.hosting_context.attribution_note}
+                </p>
+              </div>
+            )}
+
             <div className="report-section">
               <h3>Website Technology</h3>
 
@@ -1150,9 +1385,12 @@ function App() {
                 </div>
               ))}
             </div>
+              </div>
+            </details>
           </section>
         )}
       </section>
+
     </main>
   );
 }
