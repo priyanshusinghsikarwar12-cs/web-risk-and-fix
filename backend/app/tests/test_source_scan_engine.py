@@ -120,6 +120,57 @@ def test_dependency_manifests_are_inventoried(tmp_path):
     ]
 
 
+def test_dependency_lookup_is_explicit_and_joins_source_findings(tmp_path):
+    (tmp_path / "requirements.txt").write_text(
+        "jinja2==2.4.1\n"
+    )
+
+    class FakeAdvisoryClient:
+        def query(self, packages):
+            package = packages[0]
+            return {
+                "matches": [(package, "GHSA-test-1234")],
+                "details": {
+                    "GHSA-test-1234": {
+                        "summary": "Known template vulnerability",
+                        "database_specific": {"severity": "HIGH"},
+                        "affected": [],
+                        "references": [],
+                    }
+                },
+                "detail_errors": [],
+                "results_limited": False,
+            }
+
+    result = run_authorized_source_scan(
+        tmp_path,
+        authorization_attested=True,
+        dependency_advisory_lookup=True,
+        dependency_advisory_client=FakeAdvisoryClient(),
+    )
+
+    assert result["dependency_scan"]["status"] == "Completed"
+    assert result["dependency_scan"]["vulnerabilities_found"] == 1
+    assert result["finding_counts"]["High"] == 1
+    assert result["findings"][0]["finding_type"] == (
+        "Known Dependency Vulnerability"
+    )
+
+
+def test_dependency_lookup_is_not_automatic(tmp_path):
+    (tmp_path / "requirements.txt").write_text(
+        "jinja2==2.4.1\n"
+    )
+
+    result = run_authorized_source_scan(
+        tmp_path,
+        authorization_attested=True,
+    )
+
+    assert result["dependency_scan"]["status"] == "Not Requested"
+    assert result["dependency_inventory"]["exact_versions_found"] == 1
+
+
 def test_no_findings_does_not_claim_the_project_is_secure(tmp_path):
     (tmp_path / "app.py").write_text("print('hello')")
 

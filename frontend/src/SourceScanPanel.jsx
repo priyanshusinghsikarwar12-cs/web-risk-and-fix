@@ -11,6 +11,7 @@ function SourceScanPanel() {
   const [projectName, setProjectName] = useState("");
   const [clientReference, setClientReference] = useState("");
   const [authorized, setAuthorized] = useState(false);
+  const [dependencyAdvisories, setDependencyAdvisories] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [report, setReport] = useState(null);
@@ -53,6 +54,8 @@ function SourceScanPanel() {
               projectName.trim() || archive.name.replace(/\.zip$/i, ""),
             "X-WebShield-Source-Authorization": "authorized",
             "X-WebShield-Client-Reference": clientReference.trim(),
+            "X-WebShield-Dependency-Advisories":
+              dependencyAdvisories ? "enabled" : "disabled",
           },
           body: archive,
         }
@@ -141,6 +144,23 @@ function SourceScanPanel() {
           </span>
         </label>
 
+        <label className="dependency-advisory-option">
+          <input
+            type="checkbox"
+            checked={dependencyAdvisories}
+            onChange={(event) =>
+              setDependencyAdvisories(event.target.checked)
+            }
+          />
+          <span>
+            <strong>Check dependency versions for known vulnerabilities</strong>
+            <small>
+              Sends only package ecosystem, name, and exact version to OSV.dev.
+              Source files, credentials, and client details are never sent.
+            </small>
+          </span>
+        </label>
+
         <button type="submit" disabled={loading}>
           {loading ? "Reviewing source safely..." : "Review source code"}
         </button>
@@ -175,6 +195,49 @@ function SourceScanPanel() {
             </p>
           </div>
 
+          <div className="dependency-scan-summary">
+            <div>
+              <strong>Dependency vulnerability check</strong>
+              <p>{report.dependency_scan?.message}</p>
+            </div>
+
+            <span>{report.dependency_scan?.status || "Not Requested"}</span>
+
+            <div className="dependency-scan-metrics">
+              <span>
+                <strong>
+                  {report.dependency_inventory?.exact_versions_found || 0}
+                </strong>
+                exact versions found
+              </span>
+              <span>
+                <strong>{report.dependency_scan?.packages_checked || 0}</strong>
+                versions checked
+              </span>
+              <span>
+                <strong>
+                  {report.dependency_scan?.vulnerabilities_found || 0}
+                </strong>
+                unique vulnerability groups
+              </span>
+            </div>
+
+            {report.dependency_scan?.duplicate_records_merged > 0 && (
+              <small className="dependency-data-notice">
+                {report.dependency_scan.advisory_records_matched} OSV records
+                were matched; {report.dependency_scan.duplicate_records_merged}{" "}
+                equivalent alias record(s) were merged to avoid double-counting.
+              </small>
+            )}
+
+            {report.dependency_scan?.data_shared?.length > 0 && (
+              <small className="dependency-data-notice">
+                Shared with {report.dependency_scan.service}: {" "}
+                {report.dependency_scan.data_shared.join(", ")} only.
+              </small>
+            )}
+          </div>
+
           {report.findings?.map((finding, index) => (
             <details
               className="source-finding"
@@ -191,6 +254,34 @@ function SourceScanPanel() {
                 <p>{finding.explanation}</p>
                 <h4>What to do</h4>
                 <p>{finding.fix}</p>
+
+                {finding.advisory && (
+                  <div className="dependency-advisory-evidence">
+                    <strong>{finding.advisory.id}</strong>
+                    {finding.advisory.ids?.length > 1 && (
+                      <span>
+                        Related record IDs: {finding.advisory.ids.join(", ")}
+                      </span>
+                    )}
+                    <span>
+                      Package: {finding.package?.name} {finding.package?.version}
+                    </span>
+                    <span>
+                      Fixed versions: {" "}
+                      {finding.advisory.fixed_versions?.length
+                        ? finding.advisory.fixed_versions.join(", ")
+                        : "Review the advisory"}
+                    </span>
+                    <a
+                      href={finding.advisory.reference}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open trusted advisory
+                    </a>
+                  </div>
+                )}
+
                 <p className="source-confidence">
                   Confidence: {finding.confidence}
                 </p>

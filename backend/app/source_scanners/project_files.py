@@ -23,7 +23,7 @@ CONFIG_EXTENSIONS = {
 
 SPECIAL_FILES = {
     "dockerfile", "gemfile", "package-lock.json", "package.json",
-    "pipfile", "poetry.lock", "pom.xml", "requirements.txt",
+    "pipfile", "pipfile.lock", "poetry.lock", "pom.xml", "requirements.txt",
     "yarn.lock",
 }
 

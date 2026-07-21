@@ -5,6 +5,12 @@ from app.source_scanners.project_files import (
     SOURCE_EXTENSIONS,
     read_project_files,
 )
+from app.source_scanners.dependency_advisories import (
+    check_dependency_advisories,
+)
+from app.source_scanners.dependency_inventory import (
+    collect_dependencies,
+)
 from app.source_scanners.static_analysis import analyze_source_files
 
 
@@ -49,6 +55,8 @@ def run_authorized_source_scan(
     authorization_attested=False,
     client_reference=None,
     project_name=None,
+    dependency_advisory_lookup=False,
+    dependency_advisory_client=None,
 ):
     if authorization_attested is not True:
         raise SourceScanAuthorizationError(
@@ -57,7 +65,32 @@ def run_authorized_source_scan(
 
     project = read_project_files(project_path)
     analysis = analyze_source_files(project["files"])
-    findings = analysis["findings"]
+    dependency_inventory = collect_dependencies(project["files"])
+
+    if dependency_advisory_lookup:
+        dependency_scan = check_dependency_advisories(
+            dependency_inventory["packages"],
+            client=dependency_advisory_client,
+        )
+    else:
+        dependency_scan = {
+            "status": "Not Requested",
+            "message": (
+                "Known-vulnerability matching was not requested. "
+                "Dependency files were inventoried locally only."
+            ),
+            "packages_checked": 0,
+            "vulnerabilities_found": 0,
+            "findings": [],
+            "results_limited": False,
+            "service": "OSV.dev",
+            "data_shared": [],
+        }
+
+    findings = [
+        *analysis["findings"],
+        *dependency_scan["findings"],
+    ]
     counts = severity_counts(findings)
 
     if counts["Critical"] or counts["High"]:
@@ -91,6 +124,16 @@ def run_authorized_source_scan(
         "files_skipped": project["skipped"],
         "languages": build_language_inventory(project["files"]),
         "dependency_manifests": analysis["dependency_manifests"],
+        "dependency_inventory": {
+            "exact_versions_found": len(dependency_inventory["packages"]),
+            "unresolved_entries": dependency_inventory["unresolved"],
+            "results_limited": dependency_inventory["results_limited"],
+        },
+        "dependency_scan": {
+            key: value
+            for key, value in dependency_scan.items()
+            if key != "findings"
+        },
         "finding_counts": counts,
         "findings": findings,
         "secrets_redacted": True,
@@ -102,7 +145,10 @@ def run_authorized_source_scan(
         "limitations": [
             "Findings require human confirmation.",
             "Business-logic and authorization flaws may require manual review.",
-            "Dependency manifests are inventoried but not yet checked online.",
+            (
+                "Dependency advisory matches identify known vulnerable "
+                "versions but do not prove exploitability in this application."
+            ),
         ],
         "score_eligible": False,
     }

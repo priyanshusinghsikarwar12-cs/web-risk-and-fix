@@ -81,11 +81,18 @@ def test_source_archive_endpoint_returns_report(monkeypatch):
         "app.main.scan_authorized_source_archive",
         fake_scan,
     )
+    monkeypatch.setenv(
+        "WEBSHIELD_WORK_DIRECTORY",
+        "D:\\webshield-data\\temp",
+    )
+
+    headers = authorized_headers()
+    headers["X-WebShield-Dependency-Advisories"] = "enabled"
 
     response = client.post(
         "/source-scan/archive",
         content=archive_bytes(),
-        headers=authorized_headers(),
+        headers=headers,
     )
 
     assert response.status_code == 200
@@ -93,6 +100,10 @@ def test_source_archive_endpoint_returns_report(monkeypatch):
     assert received["authorization_attested"] is True
     assert received["client_reference"] == (
         "approval-email-2026-07-18"
+    )
+    assert received["dependency_advisory_lookup"] is True
+    assert received["work_directory"] == (
+        "D:\\webshield-data\\temp"
     )
 
 

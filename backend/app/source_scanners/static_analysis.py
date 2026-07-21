@@ -126,6 +126,7 @@ DEPENDENCY_FILES = {
     "requirements.txt": "Python requirements",
     "poetry.lock": "Python Poetry lockfile",
     "pipfile": "Python Pipfile",
+    "pipfile.lock": "Python Pipfile lock",
     "package.json": "Node.js package manifest",
     "package-lock.json": "Node.js lockfile",
     "yarn.lock": "Yarn lockfile",

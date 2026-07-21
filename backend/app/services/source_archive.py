@@ -114,6 +114,8 @@ def scan_authorized_source_archive(
     authorization_attested=False,
     client_reference=None,
     work_directory=None,
+    dependency_advisory_lookup=False,
+    dependency_advisory_client=None,
 ):
     if not isinstance(archive_bytes, bytes) or not archive_bytes:
         raise SourceArchiveError(
@@ -123,6 +125,21 @@ def scan_authorized_source_archive(
     if not project_name or len(project_name.strip()) > 120:
         raise SourceArchiveError(
             "Provide a short project name for the source review."
+        )
+
+    if work_directory is None:
+        work_directory = os.getenv("WEBSHIELD_WORK_DIRECTORY")
+
+    if not work_directory:
+        raise SourceArchiveError(
+            "Configure WEBSHIELD_WORK_DIRECTORY on a non-system drive "
+            "before accepting source archives."
+        )
+
+    work_directory = Path(work_directory).expanduser().resolve()
+    if not work_directory.exists() or not work_directory.is_dir():
+        raise SourceArchiveError(
+            "The configured WebShield work directory does not exist."
         )
 
     try:
@@ -146,6 +163,8 @@ def scan_authorized_source_archive(
                 authorization_attested=authorization_attested,
                 client_reference=client_reference,
                 project_name=project_name.strip(),
+                dependency_advisory_lookup=dependency_advisory_lookup,
+                dependency_advisory_client=dependency_advisory_client,
             )
 
     report["intake"] = {

@@ -375,6 +375,10 @@ async def source_scan_archive(
         default=None,
         alias="X-WebShield-Client-Reference",
     ),
+    dependency_advisories: str | None = Header(
+        default=None,
+        alias="X-WebShield-Dependency-Advisories",
+    ),
 ):
     if authorization_attestation != "authorized":
         raise HTTPException(
@@ -426,6 +430,10 @@ async def source_scan_archive(
             project_name=project_name or "Authorized project",
             authorization_attested=True,
             client_reference=client_reference.strip(),
+            dependency_advisory_lookup=(
+                dependency_advisories == "enabled"
+            ),
+            work_directory=os.getenv("WEBSHIELD_WORK_DIRECTORY"),
         )
 
     except SourceScanAuthorizationError as error:

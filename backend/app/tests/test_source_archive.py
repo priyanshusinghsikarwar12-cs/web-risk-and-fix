@@ -81,3 +81,17 @@ def test_archive_findings_keep_secrets_redacted(tmp_path):
 
     assert result["finding_counts"]["High"] == 1
     assert "real-looking" not in str(result)
+
+
+def test_missing_work_directory_is_rejected(monkeypatch):
+    monkeypatch.delenv("WEBSHIELD_WORK_DIRECTORY", raising=False)
+
+    with pytest.raises(
+        SourceArchiveError,
+        match="WEBSHIELD_WORK_DIRECTORY",
+    ):
+        scan_authorized_source_archive(
+            zip_bytes({"app.py": "print('hello')"}),
+            project_name="Project",
+            authorization_attested=True,
+        )

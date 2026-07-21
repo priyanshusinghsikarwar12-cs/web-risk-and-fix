@@ -243,3 +243,29 @@ native Python 3.14 suite, build the frontend, and inspect a real scan result.
 - Source review is now a slim collapsed row by default. Its existing authorized
   ZIP workflow, privacy controls, findings, and results expand in place.
 - Validation: production frontend build passed with 23 transformed modules.
+
+# 2026-07-21 - Dependency vulnerability scanning
+
+- Added exact-version inventory for Python requirements, Poetry locks, Pipfile
+  locks, npm package manifests/locks, and Yarn locks without executing client
+  code.
+- Version ranges are never guessed; unresolved entries are reported separately.
+- Added an explicit opt-in OSV.dev advisory lookup. Only package ecosystem,
+  package name, and exact version leave WebShield; source code, credentials,
+  project name, and client reference are not transmitted.
+- Known advisory matches join the existing source findings with severity,
+  confidence, advisory ID, fixed-version evidence, and plain-English remediation.
+- OSV outages and incomplete advisory details produce Unavailable or Partial
+  results instead of a false clean result.
+- Source uploads now require `WEBSHIELD_WORK_DIRECTORY`; local configuration
+  uses `D:\webshield-data\temp` so extracted archives do not use the C drive.
+- Added focused parser, advisory-client, privacy, failure, API, archive, and
+  source-engine tests.
+- Added alias-aware advisory grouping so equivalent OSV records are not counted
+  twice; all related record IDs remain available as evidence.
+- A real controlled scan of `jinja2==2.4.1` matched 18 OSV records and safely
+  consolidated them into 9 unique vulnerability groups without installing or
+  executing the dependency.
+- Final validation: 32 focused checks passed with 1 expected platform skip;
+  the complete backend suite passed 416 tests with 1 expected platform skip;
+  and the frontend production build passed with 23 transformed modules.
