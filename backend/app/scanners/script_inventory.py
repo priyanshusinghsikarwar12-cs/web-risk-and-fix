@@ -449,15 +449,23 @@ def analyze_script_inventory(
     }
 
 
-def check_script_inventory(domain, response=None):
+def check_script_inventory(
+    domain,
+    response=None,
+    same_host_only=False,
+    allow_invalid_tls=False,
+):
     requested_url = f"https://{domain}"
 
     try:
         if response is None:
             response = safe_get(
                 requested_url,
-            timeout=10,
-        )
+                timeout=10,
+                allowed_redirect_host=(domain if same_host_only else None),
+                redirect_delay_seconds=(0.5 if same_host_only else 0),
+                verify_tls=not allow_invalid_tls,
+            )
 
         content_type = response.headers.get(
             "Content-Type",

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import SourceScanPanel from "./SourceScanPanel";
 import DeepScanPanel from "./DeepScanPanel";
+import ReportExport from "./ReportExport";
 
 function App() {
   const [domain, setDomain] = useState("");
@@ -12,6 +13,9 @@ function App() {
   const [expandedRecommendation, setExpandedRecommendation] = useState(null);
   const [showRecentSearches, setShowRecentSearches] = useState(false);
   const [dkimSelector, setDkimSelector] = useState("");
+  const [bugBountyTarget, setBugBountyTarget] = useState("");
+  const [deepReportForExport, setDeepReportForExport] =
+    useState(null);
 
   useEffect(() => {
     const savedDomains = JSON.parse(
@@ -60,11 +64,13 @@ function App() {
     }
 
     setError("");
+    setBugBountyTarget("");
     setExpandedRecommendation(null);
 
     try {
       setLoading(true);
       setReport(null);
+      setDeepReportForExport(null);
       setDomain(cleanDomain);
 
     const query = new URLSearchParams({
@@ -95,6 +101,18 @@ function App() {
         return;
       }
 
+      const returnedDomain = normalizeDomain(
+        data?.domain || ""
+      );
+
+      if (returnedDomain !== cleanDomain) {
+        throw new Error(
+          "WebShield rejected a mismatched scan response. "
+          + `Requested ${cleanDomain}, but the response belonged to `
+          + `${returnedDomain || "an unknown domain"}.`
+        );
+      }
+
       if (
         data.overall_status ===
         "Website not reachable"
@@ -109,11 +127,36 @@ function App() {
       setReport(data);
       saveRecentDomain(cleanDomain);
     } catch (scanError) {
-      setError("Something went wrong while scanning. Please try again.");
+      setError(
+        scanError?.message === "Failed to fetch"
+          ? (
+              "WebShield could not reach the backend. Start the "
+              + "FastAPI server on port 8000 and try again."
+            )
+          : (
+              scanError?.message
+              || "Something went wrong while scanning. Please try again."
+            )
+      );
       console.error("Scan failed:", scanError);
     } finally {
       setLoading(false);
     }
+  };
+
+  const prepareBugBountyProfile = () => {
+    const cleanDomain = normalizeDomain(domain).split(/[/?#]/)[0];
+    if (!cleanDomain) {
+      setError("Enter the exact in-scope hostname first.");
+      return;
+    }
+
+    setError("");
+    setReport(null);
+    setDeepReportForExport(null);
+    setShowRecentSearches(false);
+    setDomain(cleanDomain);
+    setBugBountyTarget(cleanDomain);
   };
 
   const filteredRecentDomains = recentDomains.filter((item) =>
@@ -205,6 +248,8 @@ function App() {
               onBlur={() => setShowRecentSearches(false)}
               onChange={(event) => {
                 setDomain(event.target.value);
+                setReport(null);
+                setBugBountyTarget("");
                 setShowRecentSearches(true);
               }}
               onKeyDown={(event) => {
@@ -217,6 +262,16 @@ function App() {
               {loading ? "Scanning..." : "Scan Website"}
             </button>
           </div>
+
+          <button
+            className="bug-bounty-setup-button"
+            type="button"
+            onClick={prepareBugBountyProfile}
+            disabled={loading}
+          >
+            <span>Authorized bug bounty?</span>
+            Create the safe profile before any automated target requests
+          </button>
 
           <SourceScanPanel />
           
@@ -279,6 +334,15 @@ function App() {
 
         {error && <div className="error-message">{error}</div>}
 
+        {bugBountyTarget && !report && (
+          <section className="bug-bounty-setup-workspace">
+            <DeepScanPanel
+              key={`bug-bounty-${bugBountyTarget}`}
+              domain={bugBountyTarget}
+            />
+          </section>
+        )}
+
         {report && (
           <section className="report">
             <div className="score-header">
@@ -302,6 +366,12 @@ function App() {
   <p>{report.summary}</p>
 </div>
             </div>
+
+            <ReportExport
+              normalReport={report}
+              deepReport={deepReportForExport}
+            />
+
             <div className="recommendations">
               <h3>
                 {report.recommendations?.length
@@ -388,10 +458,25 @@ function App() {
               ))}
             </div>
 
-            <DeepScanPanel
-              key={report.domain}
-              domain={report.domain || domain}
-            />
+            <details className="advanced-assessment-disclosure">
+              <summary>
+                <span>
+                  Advanced authorized security assessment
+                  <small>
+                    Ownership verification, deeper crawling, login
+                    testing, and specialist controls
+                  </small>
+                </span>
+                <strong>Open only when needed</strong>
+              </summary>
+
+              <DeepScanPanel
+                key={report.domain}
+                domain={report.domain || domain}
+                normalReport={report}
+                onReportReady={setDeepReportForExport}
+              />
+            </details>
 
             <details className="normal-technical-disclosure">
               <summary>
@@ -413,7 +498,11 @@ function App() {
                 <h3>Website Health</h3>
                 <p>{report.health?.message}</p>
 
-                <strong>{report.health?.response_time_ms} ms</strong>
+                <strong>
+                  {Number.isFinite(report.health?.response_time_ms)
+                    ? `${report.health.response_time_ms} ms`
+                    : "Not measured"}
+                </strong>
               </div>
 
               <div className="status-card">
@@ -422,11 +511,15 @@ function App() {
                 <p>{report.ssl_certificate?.message}</p>
 
                 <strong>
-                  {Number.isInteger(report.ssl_certificate?.days_left)
-    ? `${report.ssl_certificate.days_left} days left`
-    : report.ssl_certificate?.status === "Unavailable"
-      ? "Check unavailable"
-      : "Certificate needs review"}
+                  {String(report.ssl_certificate?.message || "")
+                    .toLowerCase()
+                    .includes("expired")
+                    ? "Certificate expired"
+                    : Number.isInteger(report.ssl_certificate?.days_left)
+                      ? `${report.ssl_certificate.days_left} days left`
+                      : report.ssl_certificate?.status === "Unavailable"
+                        ? "Check unavailable"
+                        : "Certificate needs review"}
                 </strong>
               </div>
 

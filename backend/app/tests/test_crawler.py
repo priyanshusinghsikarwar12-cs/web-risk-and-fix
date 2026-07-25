@@ -156,7 +156,7 @@ def test_crawler_visits_discovered_pages(
 
     monkeypatch.setattr(
         "app.deep_scanners.crawler.safe_get",
-        lambda url, timeout, max_bytes: responses[url],
+        lambda url, timeout, max_bytes, **kwargs: responses[url],
     )
 
     result = crawl_verified_site(

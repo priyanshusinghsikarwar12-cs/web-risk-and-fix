@@ -351,12 +351,17 @@ def label_security_txt_location(
     return labelled_result    
 
 
-def fetch_and_analyze(url, analyzer):
+def fetch_and_analyze(
+    url,
+    analyzer,
+    allow_invalid_tls=False,
+):
     try:
         response = safe_get(
             url,
             timeout=10,
             max_bytes=500_000,
+            verify_tls=not allow_invalid_tls,
         )
 
         return analyzer(
@@ -377,20 +382,26 @@ def fetch_and_analyze(url, analyzer):
         return result
 
 
-def check_public_security_files(domain):
+def check_public_security_files(
+    domain,
+    allow_invalid_tls=False,
+):
     robots = fetch_and_analyze(
         f"https://{domain}/robots.txt",
         analyze_robots,
+        allow_invalid_tls,
     )
 
     sitemap = fetch_and_analyze(
         f"https://{domain}/sitemap.xml",
         analyze_sitemap,
+        allow_invalid_tls,
     )
 
     security_txt = fetch_and_analyze(
         f"https://{domain}/.well-known/security.txt",
         analyze_security_txt,
+        allow_invalid_tls,
     )
 
     security_txt = label_security_txt_location(
@@ -402,6 +413,7 @@ def check_public_security_files(domain):
         security_txt = fetch_and_analyze(
             f"https://{domain}/security.txt",
             analyze_security_txt,
+            allow_invalid_tls,
         )
 
         security_txt = label_security_txt_location(

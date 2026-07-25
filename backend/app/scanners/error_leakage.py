@@ -247,7 +247,10 @@ def analyze_error_response(
     }
 
 
-def check_error_leakage(domain):
+def check_error_leakage(
+    domain,
+    allow_invalid_tls=False,
+):
     requested_url = (
         f"https://{domain}/"
         f".well-known/webshield-missing-page-check"
@@ -258,6 +261,7 @@ def check_error_leakage(domain):
             requested_url,
             timeout=10,
             max_bytes=250_000,
+            verify_tls=not allow_invalid_tls,
         )
 
         return analyze_error_response(

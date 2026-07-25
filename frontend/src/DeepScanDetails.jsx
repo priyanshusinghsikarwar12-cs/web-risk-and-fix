@@ -102,6 +102,7 @@ function DeepScanDetails({ report }) {
   const hosting = report.hosting_context;
   const ports = report.open_ports;
   const advisories = report.javascript_advisories;
+  const inputSecurity = report.query_input_security;
   const zap = report.zap_baseline;
 
   return (
@@ -539,6 +540,69 @@ function DeepScanDetails({ report }) {
           </div>
         ) : (
           <EmptyResult message="No exact JavaScript package advisory match was returned." />
+        )}
+      </ResultSection>
+
+
+      <ResultSection
+        title="Application Input Security"
+        result={inputSecurity}
+      >
+        <p className="deep-scope-note">
+          WebShield used harmless markers and, where eligible, one
+          quote character on existing read-only query parameters. It
+          did not extract data, use UNION, boolean, or time-based
+          payloads, submit forms, execute scripts, or follow an
+          external redirect destination.
+        </p>
+
+        <div className="deep-metadata-grid">
+          <span>
+            <strong>{inputSecurity?.parameters_tested || 0}</strong>
+            Parameters tested
+          </span>
+
+          <span>
+            <strong>{inputSecurity?.requests_made || 0}</strong>
+            Bounded GET requests
+          </span>
+
+          <span>
+            <strong>{inputSecurity?.database_error_tests || 0}</strong>
+            Database error checks
+          </span>
+
+          <span>
+            <strong>{inputSecurity?.finding_count || 0}</strong>
+            Candidates
+          </span>
+        </div>
+
+        {inputSecurity?.checks?.length > 0 ? (
+          <div className="deep-result-list">
+            {inputSecurity.checks.map((finding, index) => (
+              <ResultItem
+                key={`${finding.name}-${finding.parameter}-${index}`}
+                title={finding.name}
+                message={finding.message}
+                status={finding.status}
+              >
+                <div className="deep-inline-details">
+                  <span>Parameter: {finding.parameter}</span>
+                  <span>Severity: {finding.severity}</span>
+                  <span>Confidence: {finding.confidence}</span>
+                  <span>{finding.validation}</span>
+                </div>
+
+                <p>
+                  <strong>Recommended action:</strong>{" "}
+                  {finding.remediation}
+                </p>
+              </ResultItem>
+            ))}
+          </div>
+        ) : (
+          <EmptyResult message="No bounded open-redirect, unescaped-reflection, or database-error candidate was observed on eligible existing query parameters." />
         )}
       </ResultSection>
 

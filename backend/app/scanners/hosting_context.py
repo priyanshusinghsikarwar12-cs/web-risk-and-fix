@@ -51,6 +51,29 @@ EDGE_PROVIDERS = (
     },
 )
 
+REVERSE_DNS_PROVIDERS = (
+    {
+        "suffix": "webhostbox.net",
+        "name": "WebHostBox",
+        "category": "Shared web hosting",
+    },
+    {
+        "suffix": "amazonaws.com",
+        "name": "Amazon Web Services",
+        "category": "Cloud hosting",
+    },
+    {
+        "suffix": "googleusercontent.com",
+        "name": "Google Cloud",
+        "category": "Cloud hosting",
+    },
+    {
+        "suffix": "digitalocean.com",
+        "name": "DigitalOcean",
+        "category": "Cloud hosting",
+    },
+)
+
 
 def detect_managed_provider(headers):
     normalized = {
@@ -139,12 +162,45 @@ def add_reverse_dns(addresses, reverse_lookup=socket.gethostbyaddr):
     return results
 
 
+def infer_provider_from_reverse_dns(addresses):
+    for item in addresses:
+        hostname = str(
+            item.get("reverse_dns") or ""
+        ).lower()
+        for provider in REVERSE_DNS_PROVIDERS:
+            if (
+                hostname == provider["suffix"]
+                or hostname.endswith(
+                    f".{provider['suffix']}"
+                )
+            ):
+                evidence = [
+                    (
+                        "The public IP reverse-DNS hostname ends in "
+                        f"{provider['suffix']}."
+                    )
+                ]
+                if "plesk" in hostname:
+                    evidence.append(
+                        "The reverse-DNS hostname also references Plesk."
+                    )
+                return {
+                    "name": provider["name"],
+                    "category": provider["category"],
+                    "confidence": "Medium",
+                    "evidence": evidence,
+                }
+
+    return None
+
+
 def classify_shared_infrastructure(provider):
     category = provider["category"]
 
     if category in {
         "Managed static hosting",
         "Managed application hosting",
+        "Shared web hosting",
     }:
         return {
             "status": "Likely Shared",
@@ -199,6 +255,12 @@ def check_hosting_context(
         resolve_public_addresses(domain, resolver),
         reverse_lookup,
     )
+    if not provider["name"]:
+        reverse_provider = infer_provider_from_reverse_dns(
+            addresses
+        )
+        if reverse_provider:
+            provider = reverse_provider
     sharing = classify_shared_infrastructure(provider)
 
     if provider["name"]:

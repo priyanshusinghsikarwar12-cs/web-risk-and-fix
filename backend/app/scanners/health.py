@@ -34,11 +34,23 @@ def evaluate_health(
     status_code: int,
     response_time_ms: int,
     final_url: str,
+    tls_verified: bool = True,
 ):
     response_category = classify_http_status(status_code)
     uses_https = final_url.startswith("https://")
 
-    if response_category == "successful" and uses_https:
+    if (
+        response_category == "successful"
+        and uses_https
+        and tls_verified is False
+    ):
+        status = "Needs Attention"
+        message = (
+            "The website responded, but its HTTPS certificate could "
+            "not be trusted. The remaining read-only checks continued."
+        )
+
+    elif response_category == "successful" and uses_https:
         status = "Healthy"
         message = "Your website is responding normally over HTTPS."
 
@@ -87,6 +99,7 @@ def evaluate_health(
 ),
         "final_url": final_url,
         "https": uses_https,
+        "tls_verified": tls_verified,
     }
 
 
@@ -113,6 +126,11 @@ def check_website_health(
             response.status_code,
             response_time_ms,
             response.url,
+            getattr(
+                response,
+                "webshield_tls_verified",
+                True,
+            ),
         )
 
     except requests.Timeout as error:

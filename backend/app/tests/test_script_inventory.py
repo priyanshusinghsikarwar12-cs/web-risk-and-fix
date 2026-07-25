@@ -46,7 +46,7 @@ def test_non_html_result_has_zero_library_count():
 def test_failed_inventory_has_zero_library_count(
     monkeypatch,
 ):
-    def failed_request(url, timeout):
+    def failed_request(url, timeout, **kwargs):
         raise requests.ConnectionError(
             "Connection failed"
         )

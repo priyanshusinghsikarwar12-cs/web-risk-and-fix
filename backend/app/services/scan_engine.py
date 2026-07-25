@@ -87,6 +87,16 @@ def bind_homepage_response(
     )        
 
 
+def is_tls_certificate_access_failure(connectivity):
+    return (
+        connectivity.get("tls_verified") is False
+        or (
+            connectivity.get("reachable") is not True
+            and connectivity.get("error_type") == "SSLError"
+        )
+    )
+
+
 def run_full_scan(
     domain: str,
     dkim_selector=None,  
@@ -150,7 +160,14 @@ def run_full_scan(
     if failure:
         failures.append(failure)
 
-    if not connectivity.get("reachable"):
+    tls_access_failure = is_tls_certificate_access_failure(
+        connectivity
+    )
+
+    if (
+        not connectivity.get("reachable")
+        and not tls_access_failure
+    ):
         return {
             "domain": domain,
             "scan_status": (
@@ -159,6 +176,7 @@ def run_full_scan(
                 else "Complete"
             ),
             "scan_failures": failures,
+            "transport_warning": None,
             "overall_status": "Website not reachable",
             "score": 0,
             "summary": (
@@ -187,8 +205,6 @@ def run_full_scan(
                 "%Y-%m-%d %H:%M:%S"
             ),
         }
-    if failure:
-        failures.append(failure)
     security_headers, failure = run_scanner(
         "Security Headers",
         bind_homepage_response(
@@ -330,7 +346,10 @@ def run_full_scan(
         failures.append(failure)
     public_security_files, failure = run_scanner(
         "Public Security Files",
-        check_public_security_files,
+        lambda current_domain: check_public_security_files(
+            current_domain,
+            allow_invalid_tls=tls_access_failure,
+        ),
         domain,
         {
             "name": "Public Security Files",
@@ -349,7 +368,10 @@ def run_full_scan(
         failures.append(failure) 
     error_leakage, failure = run_scanner(
         "Error Information Leakage",
-        check_error_leakage,
+        lambda current_domain: check_error_leakage(
+            current_domain,
+            allow_invalid_tls=tls_access_failure,
+        ),
         domain,
         {
             "name": "Error Information Leakage",
@@ -587,7 +609,14 @@ def run_full_scan(
 
     scan_status = "Partial" if failures else "Complete"
 
-    if failures:
+    if tls_access_failure:
+        summary = (
+            "WebShield completed the scan and confirmed that the website "
+            "responds, but its HTTPS certificate could not be trusted. "
+            "The certificate problem is prioritized while the remaining "
+            "read-only checks are included."
+        )
+    elif failures:
         summary = (
             f"WebShield completed a partial scan. "
             f"{len(failures)} check could not be completed."
@@ -603,6 +632,18 @@ def run_full_scan(
         "domain": domain,
         "scan_status": scan_status,
         "scan_failures": failures,
+        "transport_warning": (
+            {
+                "status": "Untrusted Certificate",
+                "message": (
+                    "Trusted HTTPS validation failed. WebShield continued "
+                    "with bounded read-only inspection and kept the "
+                    "certificate problem as a security finding."
+                ),
+            }
+            if tls_access_failure
+            else None
+        ),
         "overall_status": risk["overall_status"],
         "score": risk["score"],
         "risk_breakdown": risk["breakdown"],

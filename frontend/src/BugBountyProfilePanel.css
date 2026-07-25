@@ -1,0 +1,194 @@
+.bug-bounty-profile-panel {
+  margin-top: 18px;
+  border: 1px solid rgba(37, 99, 235, 0.24);
+  border-radius: 16px;
+  background: linear-gradient(135deg, #eff6ff, #f5f3ff 55%, #fff7ed);
+  overflow: hidden;
+}
+
+.bug-bounty-profile-panel > summary {
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.bug-bounty-profile-panel > summary span:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.bug-bounty-profile-panel > summary small {
+  color: #475467;
+}
+
+.bug-bounty-profile-panel > summary span:last-child {
+  color: #4338ca;
+  font-weight: 700;
+}
+
+.bug-bounty-profile-panel form {
+  padding: 0 20px 22px;
+}
+
+.bug-bounty-intro {
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.bug-bounty-intro p {
+  margin: 6px 0 0;
+  color: #475467;
+  line-height: 1.55;
+}
+
+.bug-bounty-fields {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.bug-bounty-fields label {
+  display: grid;
+  gap: 7px;
+  color: #344054;
+  font-weight: 700;
+}
+
+.bug-bounty-fields input {
+  width: 100%;
+  padding: 12px 13px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #101828;
+}
+
+.bug-bounty-scope-field {
+  grid-column: 1 / -1;
+}
+
+.bug-bounty-scanners {
+  margin: 18px 0 0;
+  padding: 16px;
+  border: 1px solid rgba(67, 56, 202, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.bug-bounty-scanners legend {
+  padding: 0 7px;
+  color: #312e81;
+  font-weight: 800;
+}
+
+.bug-bounty-scanners > p {
+  margin: 0 0 13px;
+  color: #475467;
+  line-height: 1.5;
+}
+
+.bug-bounty-scanner-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.bug-bounty-scanner-grid label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid #dbe3f0;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.bug-bounty-scanner-grid input {
+  margin-top: 3px;
+}
+
+.bug-bounty-scanner-grid span {
+  display: grid;
+  gap: 4px;
+}
+
+.bug-bounty-scanner-grid strong {
+  color: #1e1b4b;
+}
+
+.bug-bounty-scanner-grid small {
+  color: #667085;
+  line-height: 1.4;
+}
+
+.bug-bounty-scanner-count {
+  display: block;
+  margin-top: 12px;
+  color: #4338ca;
+  font-size: 13px;
+}
+
+.policy-exclusions {
+  border-color: rgba(180, 83, 9, 0.22);
+  background: rgba(255, 251, 235, 0.76);
+}
+
+.policy-exclusions legend,
+.policy-exclusions .bug-bounty-scanner-count {
+  color: #92400e;
+}
+
+.bug-bounty-confirmations {
+  margin: 16px 0;
+  display: grid;
+  gap: 10px;
+}
+
+.bug-bounty-confirmations label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #344054;
+  line-height: 1.45;
+}
+
+.bug-bounty-profile-panel button {
+  padding: 12px 18px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #2563eb, #7c3aed);
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.bug-bounty-profile-panel button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.bug-bounty-error {
+  margin: 12px 0 0;
+  color: #b42318;
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .bug-bounty-profile-panel > summary,
+  .bug-bounty-fields,
+  .bug-bounty-scanner-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bug-bounty-profile-panel > summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

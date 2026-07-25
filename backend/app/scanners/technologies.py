@@ -1,4 +1,5 @@
 import requests
+import re
 from app.utils.safe_http import safe_get
 
 
@@ -84,13 +85,67 @@ def detect_technologies_from_evidence(headers, html):
             if len(wordpress_evidence) >= 2
             else "Medium"
         )
-
         detections.append(
             create_detection(
                 name="Website Platform",
                 value="WordPress",
                 confidence=confidence,
                 evidence=wordpress_evidence,
+            )
+        )
+
+    # Public frontend-library references are valid technology evidence even
+    # when the origin platform and Server header are hidden.
+    jquery_references = re.findall(
+        r"""(?:src|href)\s*=\s*["'][^"']*jquery[^"']*["']""",
+        normalized_html,
+    )
+    if jquery_references:
+        detections.append(
+            create_detection(
+                name="Frontend Library",
+                value="jQuery",
+                confidence="Medium",
+                evidence=[
+                    (
+                        f"HTML references {len(jquery_references)} "
+                        "jQuery-named resource(s)."
+                    )
+                ],
+            )
+        )
+
+    bootstrap_references = re.findall(
+        r"""(?:src|href)\s*=\s*["'][^"']*bootstrap[^"']*["']""",
+        normalized_html,
+    )
+    if bootstrap_references:
+        detections.append(
+            create_detection(
+                name="Frontend Framework",
+                value="Bootstrap",
+                confidence="Medium",
+                evidence=[
+                    (
+                        f"HTML references {len(bootstrap_references)} "
+                        "Bootstrap-named resource(s)."
+                    )
+                ],
+            )
+        )
+
+    if (
+        "__viewstate" in normalized_html
+        or "__eventvalidation" in normalized_html
+    ):
+        detections.append(
+            create_detection(
+                name="Application Framework",
+                value="Microsoft ASP.NET",
+                confidence="Medium",
+                evidence=[
+                    "HTML contains standard ASP.NET Web Forms state fields."
+                ],
             )
         )
 
@@ -130,11 +185,11 @@ def detect_technologies(domain: str, response=None):
     url = f"https://{domain}"
 
     try:
-        response = safe_get(
-            url,
-            timeout=10,
-           
-        )
+        if response is None:
+            response = safe_get(
+                url,
+                timeout=10,
+            )
 
         detections = detect_technologies_from_evidence(
             response.headers,

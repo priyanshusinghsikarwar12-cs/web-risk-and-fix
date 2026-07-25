@@ -4,6 +4,7 @@ from app.scanners.hosting_context import (
     check_hosting_context,
     classify_shared_infrastructure,
     detect_managed_provider,
+    infer_provider_from_reverse_dns,
 )
 
 
@@ -72,6 +73,21 @@ def test_unknown_provider_is_not_guessed():
 
     assert provider["name"] is None
     assert provider["confidence"] == "None"
+
+
+def test_webhostbox_is_inferred_from_reverse_dns():
+    provider = infer_provider_from_reverse_dns([{
+        "address": "162.215.230.12",
+        "version": "IPv4",
+        "reverse_dns": "dd-plesk-web1.webhostbox.net",
+    }])
+
+    assert provider["name"] == "WebHostBox"
+    assert provider["confidence"] == "Medium"
+    assert any(
+        "Plesk" in evidence
+        for evidence in provider["evidence"]
+    )
 
 
 def test_managed_hosting_is_likely_shared():

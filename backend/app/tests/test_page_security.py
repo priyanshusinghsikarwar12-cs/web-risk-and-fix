@@ -136,3 +136,46 @@ def test_no_pages_are_not_applicable():
     result = summarize_page_security([])
 
     assert result["status"] == "Not Applicable"
+
+
+def test_repeated_cookie_observations_are_deduplicated():
+    headers = {
+        **PROTECTED_HEADERS,
+        "Set-Cookie": "preferences=dark; Path=/; SameSite=Lax",
+    }
+    pages = [
+        analyze_page_security(
+            FakeResponse(
+                url="https://example.com/",
+                headers=headers,
+            )
+        ),
+        analyze_page_security(
+            FakeResponse(
+                url="https://example.com/about",
+                headers=headers,
+            )
+        ),
+    ]
+
+    result = summarize_page_security(pages)
+
+    assert result["cookie_finding_count"] == 1
+    assert result["cookie_findings"][0]["occurrence_count"] == 2
+    assert len(result["cookie_findings"][0]["affected_pages"]) == 2
+
+
+def test_unparsed_cookie_is_a_scanner_diagnostic():
+    page = analyze_page_security(
+        FakeResponse(
+            headers={
+                **PROTECTED_HEADERS,
+                "Set-Cookie": "not a valid cookie header ;;;",
+            },
+        )
+    )
+
+    result = summarize_page_security([page])
+
+    assert result["cookie_finding_count"] == 0
+    assert result["cookie_diagnostic_count"] == 1

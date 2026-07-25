@@ -238,6 +238,7 @@ def _response_stays_in_scope(
 def check_sensitive_exposures(
     domain: str,
     delay_seconds: float = 0.15,
+    allow_invalid_tls: bool = False,
 ):
     safe_domain = clean_domain(domain)
 
@@ -263,6 +264,9 @@ def check_sensitive_exposures(
             f"https://{safe_domain}{baseline_path}",
             timeout=10,
             max_bytes=MAX_RESPONSE_BYTES,
+            allowed_redirect_host=safe_domain,
+            redirect_delay_seconds=delay_seconds,
+            verify_tls=not allow_invalid_tls,
         )
         requests_made += 1
 
@@ -287,6 +291,9 @@ def check_sensitive_exposures(
         ),
     ]
 
+    if baseline_response is not None and delay_seconds:
+        time.sleep(delay_seconds)
+
     for path, name, check_type in checks:
         url = f"https://{safe_domain}{path}"
 
@@ -295,6 +302,9 @@ def check_sensitive_exposures(
                 url,
                 timeout=10,
                 max_bytes=MAX_RESPONSE_BYTES,
+                allowed_redirect_host=safe_domain,
+                redirect_delay_seconds=delay_seconds,
+                verify_tls=not allow_invalid_tls,
             )
             requests_made += 1
 

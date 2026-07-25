@@ -111,3 +111,16 @@ def test_redirect_outside_verified_host_is_rejected():
 
     assert result["status"] == "Unavailable"
     assert len(result["errors"]) == 2
+
+
+def test_cors_requests_honor_enforced_delay(monkeypatch):
+    delays = []
+    monkeypatch.setattr("app.deep_scanners.cors.time.sleep", delays.append)
+
+    check_cors_configuration(
+        "example.com",
+        getter=make_getter(lambda origin: FakeResponse()),
+        delay_seconds=0.5,
+    )
+
+    assert delays == [0.5]

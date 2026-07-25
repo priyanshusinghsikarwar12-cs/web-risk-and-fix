@@ -397,6 +397,7 @@ def crawl_verified_site(
     start_url: str | None = None,
     session=None,
     authenticated: bool = False,
+    allow_invalid_tls: bool = False,
 ):
     safe_domain = clean_domain(domain)
 
@@ -455,6 +456,9 @@ def crawl_verified_site(
             request_options = {
                 "timeout": 10,
                 "max_bytes": 500000,
+                "allowed_redirect_host": safe_domain,
+                "redirect_delay_seconds": delay_seconds,
+                "verify_tls": not allow_invalid_tls,
             }
             if session is not None:
                 request_options["session"] = session
@@ -493,6 +497,11 @@ def crawl_verified_site(
                     response,
                     "webshield_content_truncated",
                     False,
+                ),
+                "tls_verified": getattr(
+                    response,
+                    "webshield_tls_verified",
+                    True,
                 ),
             }
 

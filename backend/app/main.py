@@ -67,9 +67,12 @@ from app.services.source_scan_engine import (
     SourceScanAuthorizationError,
 )
 from app.services.engagement_profile import (
+    BUG_BOUNTY_FINDING_EXCLUSIONS,
+    BUG_BOUNTY_SCANNERS,
     DEFAULT_SCANNERS,
     ENGAGEMENT_VERSION,
     EngagementProfileError,
+    create_bug_bounty_engagement_profile,
     create_engagement_profile,
     validate_engagement_profile,
 )
@@ -80,6 +83,7 @@ from app.services.credential_vault import (
 )
 from app.services.login_session import (
     LoginSessionError,
+    create_browser_session,
     create_login_session,
     delete_login_session,
 )
@@ -90,6 +94,17 @@ from app.services.protected_page import (
 from app.services.authenticated_crawl import (
     AuthenticatedCrawlError,
     run_authenticated_crawl,
+)
+from app.services.logout_invalidation import (
+    LogoutInvalidationError,
+    cancel_logout_invalidation_test,
+    check_logout_invalidation_test,
+    prepare_logout_invalidation_test,
+)
+from app.services.object_access_control import (
+    ObjectAccessControlError,
+    check_api_authentication_boundary,
+    check_object_access_control,
 )
 
 BACKEND_DIRECTORY = (
@@ -171,6 +186,29 @@ class EngagementProfileRequest(BaseModel):
     authorization_confirmed: bool
 
 
+class BugBountyProfileRequest(BaseModel):
+    domain: str
+    program_name: str = Field(min_length=2, max_length=120)
+    program_url: str = Field(min_length=12, max_length=500)
+    researcher_handle: str = Field(min_length=2, max_length=80)
+    scope_reference: str = Field(min_length=2, max_length=200)
+    policy_saved_date: str = Field(min_length=10, max_length=10)
+    approved_scanners: list[str] = Field(
+        default_factory=lambda: sorted(BUG_BOUNTY_SCANNERS),
+        min_length=1,
+        max_length=len(BUG_BOUNTY_SCANNERS),
+    )
+    excluded_finding_types: list[str] = Field(
+        default_factory=list,
+        max_length=len(BUG_BOUNTY_FINDING_EXCLUSIONS),
+    )
+    asset_in_scope_confirmed: bool
+    program_rules_confirmed: bool
+    safe_harbor_confirmed: bool
+    researcher_owned_accounts_only: bool
+    authenticated_testing_approved: bool = False
+
+
 class TestAccountRequest(BaseModel):
     domain: str
     login_url: str = Field(min_length=8, max_length=2048)
@@ -184,6 +222,13 @@ class LoginSessionRequest(BaseModel):
     credential_id: str = Field(min_length=12, max_length=200)
 
 
+class BrowserSessionRequest(BaseModel):
+    domain: str
+    cookie_header: str = Field(min_length=3, max_length=16_384)
+    ttl_minutes: int = Field(default=15, ge=5, le=60)
+    researcher_owned_account_confirmed: bool
+
+
 class ProtectedPageRequest(BaseModel):
     domain: str
     session_id: str = Field(min_length=12, max_length=200)
@@ -194,6 +239,45 @@ class AuthenticatedCrawlRequest(ProtectedPageRequest):
     max_pages: int = Field(default=15, ge=1, le=25)
     max_depth: int = Field(default=2, ge=0, le=2)
     accept_medium_confidence: bool = False
+    anonymous_access_denial_confirmed: bool = False
+
+
+class LogoutTestPrepareRequest(ProtectedPageRequest):
+    anonymous_access_denial_confirmed: bool = False
+    verification_endpoint_url: str | None = Field(
+        default=None,
+        min_length=8,
+        max_length=2048,
+    )
+    verification_method: Literal["GET", "POST"] = "GET"
+    verification_json_body: dict | None = None
+    read_only_post_confirmed: bool = False
+
+
+class LogoutTestCheckRequest(BaseModel):
+    domain: str
+    test_id: str = Field(min_length=12, max_length=200)
+    logout_completed_confirmed: bool
+
+
+class ObjectAccessControlRequest(BaseModel):
+    domain: str
+    session_a_id: str = Field(min_length=12, max_length=200)
+    session_b_id: str = Field(min_length=12, max_length=200)
+    endpoint_template: str = Field(min_length=20, max_length=2048)
+    object_a_id: str = Field(min_length=1, max_length=128)
+    object_b_id: str = Field(min_length=1, max_length=128)
+    read_only_get_confirmed: bool
+    test_accounts_own_objects_confirmed: bool
+
+
+class ApiAuthenticationBoundaryRequest(BaseModel):
+    domain: str
+    session_id: str = Field(min_length=12, max_length=200)
+    endpoint_template: str = Field(min_length=20, max_length=2048)
+    object_id: str = Field(min_length=1, max_length=128)
+    read_only_get_confirmed: bool
+    private_test_object_confirmed: bool
 
 class DeepScanZapRequest(BaseModel):
     domain: str
@@ -344,11 +428,26 @@ def require_engagement_access(
             status_code=403,
             detail="A signed Engagement Profile is required.",
         )
+    if (
+        payload.get("assessment_mode") == "bug_bounty"
+        and payload.get("authenticated_testing_approved") is not True
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Authenticated testing was not approved in this signed "
+                "bug bounty profile. Create a new profile and explicitly "
+                "enable own-account authenticated testing."
+            ),
+        )
     return payload
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -640,6 +739,32 @@ def engagement_profile(
         ) from error
 
 
+@app.post("/engagement/bug-bounty-profile")
+def bug_bounty_engagement_profile(
+    request: BugBountyProfileRequest,
+):
+    try:
+        return create_bug_bounty_engagement_profile(
+            request.domain,
+            {
+                **request.model_dump(exclude={"domain"}),
+                "client_reference": (
+                    f"{request.program_name} public bug bounty"
+                ),
+                "authorized_by": "Published HackerOne program",
+            },
+            get_verification_secret(),
+        )
+    except (
+        DomainValidationError,
+        EngagementProfileError,
+    ) as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        ) from error
+
+
 @app.post("/engagement/test-account")
 def create_engagement_test_account(
     request: TestAccountRequest,
@@ -700,6 +825,36 @@ def create_engagement_login_session(
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
+@app.post("/engagement/browser-session")
+def create_engagement_browser_session(
+    request: BrowserSessionRequest,
+    authorization: str | None = Header(default=None),
+):
+    engagement_payload = require_engagement_access(
+        request.domain,
+        authorization,
+    )
+    if request.researcher_owned_account_confirmed is not True:
+        raise HTTPException(
+            status_code=400,
+            detail="Confirm that the browser session belongs to your own test account.",
+        )
+    try:
+        browser_session_payload = engagement_payload
+        if engagement_payload.get("assessment_mode") == "owner_verified":
+            browser_session_payload = {
+                **engagement_payload,
+                "researcher_owned_accounts_only": True,
+            }
+        return create_browser_session(
+            request.cookie_header,
+            browser_session_payload,
+            ttl_seconds=request.ttl_minutes * 60,
+        )
+    except LoginSessionError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
 @app.delete("/engagement/login-session/{session_id}")
 def remove_engagement_login_session(
     session_id: str,
@@ -752,6 +907,9 @@ def run_engagement_authenticated_crawl(
             max_pages=request.max_pages,
             max_depth=request.max_depth,
             accept_medium_confidence=request.accept_medium_confidence,
+            anonymous_access_denial_confirmed=(
+                request.anonymous_access_denial_confirmed
+            ),
         )
     except (
         AuthenticatedCrawlError,
@@ -759,6 +917,127 @@ def run_engagement_authenticated_crawl(
         ProtectedPageError,
     ) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/engagement/logout-test/prepare")
+def prepare_engagement_logout_test(
+    request: LogoutTestPrepareRequest,
+    authorization: str | None = Header(default=None),
+):
+    engagement_payload = require_engagement_access(
+        request.domain,
+        authorization,
+    )
+    try:
+        return prepare_logout_invalidation_test(
+            request.session_id,
+            request.protected_url,
+            engagement_payload,
+            anonymous_access_denial_confirmed=(
+                request.anonymous_access_denial_confirmed
+            ),
+            verification_endpoint_url=request.verification_endpoint_url,
+            verification_method=request.verification_method,
+            verification_json_body=request.verification_json_body,
+            read_only_post_confirmed=request.read_only_post_confirmed,
+        )
+    except (
+        LogoutInvalidationError,
+        LoginSessionError,
+        ProtectedPageError,
+    ) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/engagement/object-access/check")
+def check_engagement_object_access(
+    request: ObjectAccessControlRequest,
+    authorization: str | None = Header(default=None),
+):
+    engagement_payload = require_engagement_access(
+        request.domain,
+        authorization,
+    )
+    try:
+        return check_object_access_control(
+            request.session_a_id,
+            request.session_b_id,
+            request.endpoint_template,
+            request.object_a_id,
+            request.object_b_id,
+            engagement_payload,
+            read_only_get_confirmed=request.read_only_get_confirmed,
+            test_accounts_own_objects_confirmed=(
+                request.test_accounts_own_objects_confirmed
+            ),
+        )
+    except (
+        LoginSessionError,
+        ObjectAccessControlError,
+    ) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/engagement/api-auth-boundary/check")
+def check_engagement_api_authentication_boundary(
+    request: ApiAuthenticationBoundaryRequest,
+    authorization: str | None = Header(default=None),
+):
+    engagement_payload = require_engagement_access(
+        request.domain,
+        authorization,
+    )
+    try:
+        return check_api_authentication_boundary(
+            request.session_id,
+            request.endpoint_template,
+            request.object_id,
+            engagement_payload,
+            read_only_get_confirmed=request.read_only_get_confirmed,
+            private_test_object_confirmed=(
+                request.private_test_object_confirmed
+            ),
+        )
+    except (
+        LoginSessionError,
+        ObjectAccessControlError,
+    ) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/engagement/logout-test/check")
+def check_engagement_logout_test(
+    request: LogoutTestCheckRequest,
+    authorization: str | None = Header(default=None),
+):
+    engagement_payload = require_engagement_access(
+        request.domain,
+        authorization,
+    )
+    try:
+        return check_logout_invalidation_test(
+            request.test_id,
+            engagement_payload,
+            request.logout_completed_confirmed,
+        )
+    except (
+        LogoutInvalidationError,
+        LoginSessionError,
+    ) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.delete("/engagement/logout-test/{test_id}")
+def cancel_engagement_logout_test(
+    test_id: str,
+    domain: str,
+    authorization: str | None = Header(default=None),
+):
+    engagement_payload = require_engagement_access(domain, authorization)
+    try:
+        return cancel_logout_invalidation_test(test_id, engagement_payload)
+    except LogoutInvalidationError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
 
 @app.post("/deep-scan/crawl")
 def deep_scan_crawl(
@@ -1050,13 +1329,47 @@ def run_complete_deep_scan(
         else request.zap_maximum_minutes
     )
 
+    assessment_mode = authorization_payload.get(
+        "assessment_mode",
+        "owner_verified",
+    )
+    owner_controlled_assessment = (
+        assessment_mode != "bug_bounty"
+    )
+
+    scan_options = {
+        "max_pages": max_pages,
+        "max_depth": max_depth,
+        "include_zap": include_zap,
+        "zap_spider_minutes": zap_spider_minutes,
+        "zap_maximum_minutes": zap_maximum_minutes,
+        # Owner-controlled scans may preserve page-level evidence even when
+        # the certificate itself is the failure being diagnosed. Published
+        # third-party programs remain strict and policy-limited.
+        "baseline_scanner": (
+            run_full_scan
+            if owner_controlled_assessment
+            else None
+        ),
+        "allow_invalid_tls": owner_controlled_assessment,
+    }
+    if engagement_active:
+        scan_options.update({
+            "approved_scanners": authorization_payload[
+                "approved_scanners"
+            ],
+            "request_delay_seconds": authorization_payload.get(
+                "request_delay_seconds"
+            ),
+            "excluded_finding_types": authorization_payload.get(
+                "excluded_finding_types",
+                [],
+            ),
+        })
+
     report = run_verified_deep_scan(
         authorization_payload["domain"],
-        max_pages=max_pages,
-        max_depth=max_depth,
-        include_zap=include_zap,
-        zap_spider_minutes=zap_spider_minutes,
-        zap_maximum_minutes=zap_maximum_minutes,
+        **scan_options,
     )
 
     if engagement_active:
@@ -1066,8 +1379,27 @@ def run_complete_deep_scan(
             "authorized_by": authorization_payload["authorized_by"],
             "environment": authorization_payload["environment"],
             "approved_scanners": authorization_payload["approved_scanners"],
+            "excluded_finding_types": authorization_payload.get(
+                "excluded_finding_types",
+                [],
+            ),
             "expires_at": authorization_payload["expires_at"],
             "limits_enforced": True,
+            "assessment_mode": authorization_payload.get(
+                "assessment_mode", "owner_verified"
+            ),
+            "program_name": authorization_payload.get("program_name"),
+            "program_url": authorization_payload.get("program_url"),
+            "researcher_handle": authorization_payload.get(
+                "researcher_handle"
+            ),
+            "policy_saved_date": authorization_payload.get(
+                "policy_saved_date"
+            ),
+            "request_delay_seconds": authorization_payload.get(
+                "request_delay_seconds"
+            ),
+            "max_concurrency": authorization_payload.get("max_concurrency"),
         }
 
     return report

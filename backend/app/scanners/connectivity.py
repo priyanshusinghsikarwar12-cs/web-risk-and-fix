@@ -27,6 +27,11 @@ def check_connectivity(domain: str):
         "url": response.url,
         "status_code": response.status_code,
         "reachable": True,
+        "tls_verified": homepage.get(
+            "tls_verified",
+            True,
+        ),
+        "tls_error": homepage.get("tls_error"),
 
         # Internal values removed before creating the report.
         "_homepage_response": response,

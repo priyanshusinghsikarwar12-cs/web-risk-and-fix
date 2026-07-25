@@ -81,12 +81,14 @@ def summarize_page_security(
             "pages_analyzed": 0,
             "header_coverage": [],
             "cookie_findings": [],
+            "cookie_diagnostics": [],
             "mixed_content_findings": [],
             "score_eligible": False,
         }
 
     header_coverage = {}
-    cookie_findings = []
+    cookie_finding_index = {}
+    cookie_diagnostic_pages = []
     mixed_content_findings = []
 
     for page in page_results:
@@ -126,10 +128,35 @@ def summarize_page_security(
                 "Needs Attention",
                 "Review",
             }:
-                cookie_findings.append({
-                    **cookie,
-                    "page_url": page_url,
-                })
+                if cookie.get("name") == "Unparsed cookie":
+                    if page_url not in cookie_diagnostic_pages:
+                        cookie_diagnostic_pages.append(page_url)
+                    continue
+
+                flags = cookie.get("flags") or {}
+                key = (
+                    cookie.get("name"),
+                    cookie.get("status"),
+                    flags.get("secure"),
+                    flags.get("http_only"),
+                    flags.get("same_site"),
+                    tuple(cookie.get("warnings") or []),
+                )
+                aggregate = cookie_finding_index.setdefault(
+                    key,
+                    {
+                        **cookie,
+                        "page_url": page_url,
+                        "affected_pages": [],
+                        "occurrence_count": 0,
+                    },
+                )
+                aggregate["occurrence_count"] += 1
+                if (
+                    page_url not in aggregate["affected_pages"]
+                    and len(aggregate["affected_pages"]) < 20
+                ):
+                    aggregate["affected_pages"].append(page_url)
 
         mixed_result = page["mixed_content"]
 
@@ -143,6 +170,19 @@ def summarize_page_security(
             })
 
     coverage_results = []
+    cookie_findings = list(cookie_finding_index.values())
+    cookie_diagnostics = []
+    if cookie_diagnostic_pages:
+        cookie_diagnostics.append({
+            "name": "Unparsed cookie header",
+            "message": (
+                "WebShield observed a Set-Cookie header it could not "
+                "safely interpret. This is a scanner diagnostic, not "
+                "a confirmed website vulnerability."
+            ),
+            "affected_pages": cookie_diagnostic_pages[:20],
+            "occurrence_count": len(cookie_diagnostic_pages),
+        })
 
     for coverage in header_coverage.values():
         coverage_results.append({
@@ -211,6 +251,8 @@ def summarize_page_security(
         "cookie_finding_count": len(
             cookie_findings
         ),
+        "cookie_diagnostics": cookie_diagnostics,
+        "cookie_diagnostic_count": len(cookie_diagnostics),
         "mixed_content_findings": (
             mixed_content_findings[:100]
         ),

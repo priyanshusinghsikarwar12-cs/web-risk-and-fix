@@ -434,10 +434,14 @@ def check_javascript_advisories(
     domain: str,
     response=None,
     query_function=query_osv_package,
+    same_host_only=False,
+    allow_invalid_tls=False,
 ):
     inventory = check_script_inventory(
         domain,
         response=response,
+        same_host_only=same_host_only,
+        allow_invalid_tls=allow_invalid_tls,
     )
 
     result = match_javascript_advisories(

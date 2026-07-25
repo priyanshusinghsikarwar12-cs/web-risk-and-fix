@@ -60,3 +60,31 @@ def test_homepage_fetch_uses_https(monkeypatch):
     fetch_homepage("example.com")
 
     assert captured["url"] == "https://example.com"
+
+
+def test_certificate_failure_retries_read_only_without_trust(
+    monkeypatch,
+):
+    response = FakeResponse()
+    calls = []
+
+    def certificate_then_page(url, timeout, verify_tls=True):
+        calls.append(verify_tls)
+        if verify_tls:
+            raise requests.exceptions.SSLError(
+                "certificate has expired"
+            )
+        response.webshield_tls_verified = False
+        return response
+
+    monkeypatch.setattr(
+        "app.services.homepage_fetcher.safe_get",
+        certificate_then_page,
+    )
+
+    result = fetch_homepage("example.com")
+
+    assert calls == [True, False]
+    assert result["response"] is response
+    assert result["tls_verified"] is False
+    assert "expired" in result["tls_error"]

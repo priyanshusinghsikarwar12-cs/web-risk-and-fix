@@ -55,6 +55,7 @@ def check_http_method_exposure(
     domain: str,
     requester=requests.options,
     validator=validate_request_url,
+    allow_invalid_tls: bool = False,
 ):
     safe_domain = clean_domain(domain)
     target_url = f"https://{safe_domain}/"
@@ -76,6 +77,7 @@ def check_http_method_exposure(
                 ),
                 "Accept": "*/*",
             },
+            verify=not allow_invalid_tls,
         )
 
         if not _response_stays_in_scope(

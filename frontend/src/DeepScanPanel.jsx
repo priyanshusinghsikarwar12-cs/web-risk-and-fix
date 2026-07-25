@@ -1,10 +1,49 @@
-import { useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import DeepScanDetails from "./DeepScanDetails";
 import VulnerabilityOverview from "./VulnerabilityOverview";
 import AuthenticatedTestingPanel from "./AuthenticatedTestingPanel";
+import ObjectAccessControlPanel from "./ObjectAccessControlPanel";
+import ApiAuthenticationBoundaryPanel from "./ApiAuthenticationBoundaryPanel";
+import BugBountyProfilePanel from "./BugBountyProfilePanel";
+import ReportExport from "./ReportExport";
 
 
 const API_URL = "http://127.0.0.1:8000";
+
+const SCANNER_LABELS = {
+  crawler: "Application crawler",
+  query_input_security: "Application input security",
+  exposure_checks: "Sensitive exposure checks",
+  cors: "CORS checks",
+  javascript_advisories: "JavaScript advisories",
+};
+const POLICY_EXCLUSION_LABELS = {
+  missing_security_headers: "Missing security headers",
+  cookie_attribute_observations: "Cookie attribute observations",
+  form_hygiene_observations: "Form best-practice observations",
+  mixed_content_observations: "Mixed-content observations",
+};
+
+
+function formatScannerList(scanners = []) {
+  return scanners
+    .map((scanner) => SCANNER_LABELS[scanner] || scanner)
+    .join(", ");
+}
+
+
+function formatPolicyExclusions(exclusions = []) {
+  if (!exclusions.length) {
+    return "None";
+  }
+  return exclusions
+    .map((item) => POLICY_EXCLUSION_LABELS[item] || item)
+    .join(", ");
+}
 
 
 async function readResponse(response) {
@@ -29,7 +68,11 @@ async function readResponse(response) {
 }
 
 
-function DeepScanPanel({ domain }) {
+function DeepScanPanel({
+  domain,
+  normalReport = null,
+  onReportReady = null,
+}) {
   const [challenge, setChallenge] = useState(null);
   const [method, setMethod] = useState("dns");
   const [authorizationReceipt, setAuthorizationReceipt] =
@@ -61,6 +104,35 @@ function DeepScanPanel({ domain }) {
   const [devAdminToken, setDevAdminToken] =
   useState("");
 
+  const updateDeepReport = useCallback(
+    (report) => {
+      setDeepReport(report);
+      onReportReady?.(report);
+    },
+    [onReportReady]
+  );
+
+  const acceptBugBountyProfile = (profile) => {
+    setEngagementReceipt(profile.receipt);
+    setEngagementProfile(profile);
+    updateDeepReport(null);
+    setError("");
+    sessionStorage.setItem(
+      `webshield-engagement:${domain.toLowerCase()}`,
+      JSON.stringify(profile)
+    );
+  };
+
+  const createNewEngagementProfile = () => {
+    sessionStorage.removeItem(
+      `webshield-engagement:${domain.toLowerCase()}`
+    );
+    setEngagementReceipt("");
+    setEngagementProfile(null);
+    updateDeepReport(null);
+    setError("");
+  };
+
 
   useEffect(() => {
     setChallenge(null);
@@ -89,9 +161,9 @@ function DeepScanPanel({ domain }) {
       setEngagementReceipt("");
       setEngagementProfile(null);
     }
-    setDeepReport(null);
+    updateDeepReport(null);
     setError("");
-  }, [domain]);
+  }, [domain, updateDeepReport]);
 
 
   const createChallenge = async () => {
@@ -105,7 +177,7 @@ function DeepScanPanel({ domain }) {
     setError("");
     setCreatingChallenge(true);
     setAuthorizationReceipt("");
-    setDeepReport(null);
+    updateDeepReport(null);
 
     try {
       const response = await fetch(
@@ -174,6 +246,7 @@ function DeepScanPanel({ domain }) {
               "subdomains",
               "ports",
               "javascript_advisories",
+              "query_input_security",
             ],
             authorization_confirmed: true,
           }),
@@ -204,7 +277,7 @@ function DeepScanPanel({ domain }) {
     setError("");
     setCreatingEngagement(true);
     setDeepScanning(true);
-    setDeepReport(null);
+    updateDeepReport(null);
 
     try {
       const profileResponse = await fetch(
@@ -233,6 +306,7 @@ function DeepScanPanel({ domain }) {
               "subdomains",
               "ports",
               "javascript_advisories",
+              "query_input_security",
             ],
             authorization_confirmed: true,
           }),
@@ -264,7 +338,9 @@ function DeepScanPanel({ domain }) {
           }),
         }
       );
-      setDeepReport(await readResponse(scanResponse));
+      updateDeepReport(
+        await readResponse(scanResponse)
+      );
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -342,7 +418,7 @@ function DeepScanPanel({ domain }) {
 
     setError("");
     setDeepScanning(true);
-    setDeepReport(null);
+    updateDeepReport(null);
 
     try {
       const requestHeaders = {
@@ -379,7 +455,7 @@ if (engagementReceipt) {
 
       const data = await readResponse(response);
 
-      setDeepReport(data);
+      updateDeepReport(data);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -410,8 +486,8 @@ if (engagementReceipt) {
           <h3>Deep Security Scan</h3>
 
           <p>
-            Prove that you control this domain before
-            WebShield performs deeper security checks.
+            Use verified ownership or documented public bug bounty
+            authorization before WebShield performs deeper security checks.
           </p>
         </div>
 
@@ -427,6 +503,14 @@ if (engagementReceipt) {
           </button>
         )}
       </div>
+      {!challenge &&
+        !authorizationReceipt &&
+        !engagementReceipt && (
+          <BugBountyProfilePanel
+            domain={domain}
+            onProfileCreated={acceptBugBountyProfile}
+          />
+        )}
 {import.meta.env.DEV &&
   !authorizationReceipt &&
   !engagementReceipt && (
@@ -587,25 +671,25 @@ if (engagementReceipt) {
 
           <div className="engagement-fields">
             <label>
-              Client or approval reference
+              Permission note
               <input
                 value={clientReference}
                 onChange={(event) => setClientReference(event.target.value)}
-                placeholder="Example: Client website assessment #001"
+                placeholder="Example: Website owner approved this assessment"
               />
             </label>
 
             <label>
-              Authorized by
+              Who gave permission?
               <input
                 value={authorizedBy}
                 onChange={(event) => setAuthorizedBy(event.target.value)}
-                placeholder="Name or role of approving person"
+                placeholder="Example: Website owner or IT administrator"
               />
             </label>
 
             <label>
-              Environment
+              Website type
               <select
                 value={environment}
                 onChange={(event) => setEnvironment(event.target.value)}
@@ -662,33 +746,116 @@ if (engagementReceipt) {
       {engagementReceipt && engagementProfile && (
         <div className="verified-domain engagement-ready">
           <div>
-            <span className="verified-badge">Engagement ready</span>
+            <span className="verified-badge">
+              {engagementProfile.assessment_mode === "bug_bounty"
+                ? "Bug bounty safe profile ready"
+                : "Engagement ready"}
+            </span>
             <h4>{engagementProfile.client_reference}</h4>
             <p>
               {domain} · {engagementProfile.environment} · authorized by{" "}
               {engagementProfile.authorized_by}
             </p>
+            {engagementProfile.assessment_mode === "bug_bounty" && (
+              <>
+                <p>
+                  Researcher: {engagementProfile.researcher_handle} · five pages
+                  · depth one · one request at a time
+                </p>
+                <p>
+                  Signed scanners: {formatScannerList(
+                    engagementProfile.approved_scanners
+                  )}
+                </p>
+                <p>
+                  Policy exclusions: {formatPolicyExclusions(
+                    engagementProfile.excluded_finding_types
+                  )}
+                </p>
+              </>
+            )}
             <p>
               Signed limits expire: {formatExpiry(engagementProfile.expires_at)}
             </p>
           </div>
 
-          <button
-            className="deep-primary-button"
-            onClick={startDeepScan}
-            disabled={deepScanning}
-          >
-            {deepScanning ? "Running deep scan..." : "Start Deep Scan"}
-          </button>
+          <div className="engagement-profile-actions">
+            <button
+              className="deep-primary-button"
+              onClick={startDeepScan}
+              disabled={deepScanning}
+            >
+              {deepScanning
+                ? "Running deep scan..."
+                : engagementProfile.assessment_mode === "bug_bounty"
+                  ? "Start Bug Bounty Safe Scan"
+                  : "Start Deep Scan"}
+            </button>
+
+            <button
+              className="deep-secondary-button"
+              type="button"
+              onClick={createNewEngagementProfile}
+              disabled={deepScanning}
+            >
+              Create New Profile
+            </button>
+          </div>
         </div>
       )}
 
-      {engagementReceipt && (
+      {engagementReceipt &&
+        (
+          engagementProfile?.assessment_mode !== "bug_bounty"
+          || engagementProfile?.authenticated_testing_approved === true
+        ) && (
         <AuthenticatedTestingPanel
           domain={domain}
           engagementReceipt={engagementReceipt}
+          bugBountyMode={engagementProfile?.assessment_mode === "bug_bounty"}
         />
       )}
+
+      <ApiAuthenticationBoundaryPanel
+        domain={domain}
+        engagementReceipt={engagementReceipt}
+        enabled={Boolean(
+          engagementReceipt
+          && engagementProfile?.assessment_mode !== "bug_bounty"
+        )}
+        unavailableReason={
+          !engagementReceipt
+            ? "Create or load a signed owner-verified engagement profile to enable this test."
+            : engagementProfile?.assessment_mode === "bug_bounty"
+              ? "This active two-account test is currently unavailable in WebShield's public bug-bounty safe profile. Use an owner-verified client engagement."
+              : "An owner-verified engagement is required."
+        }
+      />
+
+      <ObjectAccessControlPanel
+        domain={domain}
+        engagementReceipt={engagementReceipt}
+        enabled={Boolean(
+          engagementReceipt
+          && engagementProfile?.assessment_mode !== "bug_bounty"
+        )}
+        unavailableReason={
+          !engagementReceipt
+            ? "Create or load a signed owner-verified engagement profile to enable this test."
+            : engagementProfile?.assessment_mode === "bug_bounty"
+              ? "This active two-account test is currently unavailable in WebShield's public bug-bounty safe profile. Use an owner-verified client engagement."
+              : "An owner-verified engagement is required."
+        }
+      />
+
+      {engagementReceipt &&
+        engagementProfile?.assessment_mode === "bug_bounty" &&
+        engagementProfile?.authenticated_testing_approved !== true && (
+          <p className="verification-expiry">
+            Authenticated testing is not enabled in this signed safe profile.
+            Create a new profile to approve own-account read-only testing.
+          </p>
+        )}
 
 
       {deepScanning && (
@@ -698,9 +865,9 @@ if (engagementReceipt) {
           </strong>
 
           <p>
-          Crawling, exposure checks, CORS and HTTP method testing,
-subdomains, controlled ports, and JavaScript
-advisories may take a few minutes.  
+            {engagementProfile?.assessment_mode === "bug_bounty"
+              ? "Running only the signed bug bounty safe checks with enforced pacing."
+              : "Crawling and approved deep checks may take a few minutes."}
           </p>
         </div>
       )}
@@ -738,6 +905,13 @@ advisories may take a few minutes.
 
 
           <VulnerabilityOverview report={deepReport} />
+
+          {!onReportReady && (
+            <ReportExport
+              normalReport={normalReport}
+              deepReport={deepReport}
+            />
+          )}
 
           <details className="technical-evidence-disclosure">
             <summary>

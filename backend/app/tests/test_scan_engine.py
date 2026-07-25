@@ -1,8 +1,28 @@
 from app.services.scan_engine import (
     bind_homepage_response,
+    is_tls_certificate_access_failure,
     run_full_scan,
     run_scanner,
 )
+
+
+def test_tls_certificate_failure_allows_independent_checks_to_continue():
+    assert is_tls_certificate_access_failure({
+        "reachable": False,
+        "error_type": "SSLError",
+    }) is True
+
+    assert is_tls_certificate_access_failure({
+        "reachable": True,
+        "tls_verified": False,
+    }) is True
+
+
+def test_non_tls_connection_failure_still_stops_page_scan():
+    assert is_tls_certificate_access_failure({
+        "reachable": False,
+        "error_type": "ConnectionError",
+    }) is False
 
 def test_homepage_response_is_bound_to_scanner():
     homepage_response = object()
@@ -214,7 +234,7 @@ def test_full_scan_becomes_partial_when_scanner_fails(
 
     monkeypatch.setattr(
         "app.services.scan_engine.check_public_security_files",
-        lambda domain: {
+        lambda domain, **kwargs: {
             "name": "Public Security Files",
             "domain": domain,
             "status": "Completed",
@@ -228,7 +248,7 @@ def test_full_scan_becomes_partial_when_scanner_fails(
 
     monkeypatch.setattr(
         "app.services.scan_engine.check_error_leakage",
-        lambda domain: {
+        lambda domain, **kwargs: {
             "name": "Error Information Leakage",
             "status": "Not Observed",
             "message": (

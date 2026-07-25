@@ -1,4 +1,5 @@
 from urllib.parse import urlsplit
+import time
 
 import requests
 
@@ -45,14 +46,23 @@ def _response_stays_in_scope(
 def check_cors_configuration(
     domain: str,
     getter=safe_get,
+    delay_seconds: float = 0,
+    allow_invalid_tls: bool = False,
 ):
     safe_domain = clean_domain(domain)
     target_url = f"https://{safe_domain}/"
 
+    if not 0 <= delay_seconds <= 5:
+        raise ValueError(
+            "The CORS request delay must be between 0 and 5 seconds."
+        )
+
     observations = []
     errors = []
 
-    for test_origin in TEST_ORIGINS:
+    for index, test_origin in enumerate(TEST_ORIGINS):
+        if index and delay_seconds:
+            time.sleep(delay_seconds)
         try:
             response = getter(
                 target_url,
@@ -62,6 +72,9 @@ def check_cors_configuration(
                     "Origin": test_origin,
                     "Accept": "text/html,*/*",
                 },
+                allowed_redirect_host=safe_domain,
+                redirect_delay_seconds=delay_seconds,
+                verify_tls=not allow_invalid_tls,
             )
 
             if not _response_stays_in_scope(
