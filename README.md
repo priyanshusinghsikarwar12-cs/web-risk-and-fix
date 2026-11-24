@@ -1,60 +1,124 @@
 # 🛡️ Web Risk & Fix
 
-> **Clear security evidence. Practical remediation.**
-
-A comprehensive automated web security assessment platform that scans domains 
-and generates professional PDF security reports with prioritized remediation plans.
+> **Clear security evidence. Practical remediation.**  
+> An automated web application security assessment platform.
 
 ---
 
-## 📋 What It Does
+## Overview
 
-Web Risk & Fix performs a **Normal and Verified Deep Security Assessment** on 
-any domain, running 80+ scanners across 15+ security categories and producing 
-a structured, professional-grade report — similar to commercial tools like 
-Detectify or ImmuniWeb.
+Web Risk & Fix is a full-stack automated security assessment platform that 
+performs multi-layered security analysis across four scan modes and generates 
+professional PDF reports with prioritized remediation plans.
+
+Comparable to commercial platforms like **Detectify**, **ImmuniWeb**, 
+and **Qualys WAS**.
 
 ---
 
-## 🔍 Scanner Categories
+## Architecture — Four Scanner Layers
 
-| Category | What It Checks |
+### 1. Surface Scanners (`/scanners`) — 18 modules
+Passive and lightweight checks run on every scan.
+
+| Module | Purpose |
 |---|---|
-| **Deep Security Scan** | Certificate validation, cross-origin access, sensitive exposure |
-| **Application Crawler** | Crawls up to 25+ pages autonomously without submitting forms |
-| **Open Ports & Services** | FTP (21), DNS (53), SMTP (587), IMAP (143), POP3 (110), MySQL (3306), and more |
-| **Security Headers** | HSTS, CSP, X-Frame-Options, Feature-Policy, Referrer-Policy, X-Content-Type |
-| **TLS Protocol Security** | TLS 1.0 / 1.1 / 1.2 / 1.3 support and configuration |
-| **DNS Records** | SPF, DMARC, DNSSEC, MX, A/AAAA records |
-| **Subdomain Discovery** | DNS-confirmed subdomains (lms, mail, webmail, www, etc.) |
-| **Domain Trust** | CAA records, certificate issuance control, DNSSEC delegation |
-| **Technology Detection** | Application framework, frontend library, server fingerprinting |
-| **HTTP Method Exposure** | TRACE, PUT, DELETE method detection |
-| **Cookie Security** | Secure, HttpOnly, SameSite flags |
-| **CORS Configuration** | Cross-origin resource sharing policy analysis |
-| **Privacy Signals** | Cookie consent, privacy policy detection |
-| **Public Security Files** | robots.txt, security.txt, sitemap.xml |
-| **Website Reputation** | Google Web Risk integration |
-| **JavaScript Inventory** | Referenced JS files and known vulnerability advisories |
+| `ssl.py` | SSL certificate validation, expiry, issuer chain |
+| `tls_protocols.py` | TLS 1.0 / 1.1 / 1.2 / 1.3 support detection |
+| `headers.py` | HSTS, CSP, X-Frame-Options, Referrer-Policy, Feature-Policy |
+| `dns.py` | A, MX, SPF, DMARC, DNSSEC, IPv6 records |
+| `dkim.py` | DKIM email authentication validation |
+| `cookies.py` | Secure, HttpOnly, SameSite flag analysis |
+| `technologies.py` | Framework, library, server fingerprinting |
+| `reputation.py` | Google Web Risk API integration |
+| `rdap.py` | WHOIS / RDAP domain registration data |
+| `domain_trust.py` | CAA records, certificate issuance control |
+| `privacy_signals.py` | Cookie consent, privacy policy detection |
+| `public_files.py` | robots.txt, security.txt, sitemap.xml |
+| `mixed_content.py` | HTTP resources loaded on HTTPS pages |
+| `hosting_context.py` | Hosting provider and infrastructure detection |
+| `script_inventory.py` | JavaScript file inventory |
+| `error_leakage.py` | Stack trace and error information disclosure |
+| `health.py` | Website availability and response analysis |
+| `connectivity.py` | DNS resolution and network reachability |
 
 ---
 
-## 📄 Report Output
+### 2. Deep Scanners (`/deep_scanners`) — 11 modules
+Active verification including OWASP ZAP integration.
 
-Generates an **18-page professional PDF** containing:
+| Module | Purpose |
+|---|---|
+| `crawler.py` | Autonomous application crawler (25+ pages, no form submission) |
+| `ports.py` | Port scan: FTP(21), DNS(53), SMTP(587), IMAP(143), MySQL(3306) + more |
+| `subdomains.py` | DNS-confirmed subdomain enumeration |
+| `cors.py` | Cross-origin resource sharing policy verification |
+| `http_methods.py` | TRACE, PUT, DELETE method exposure detection |
+| `page_security.py` | Per-page security header verification |
+| `form_hygiene.py` | CSRF token and form security validation |
+| `query_security.py` | Query parameter injection surface analysis |
+| `js_advisories.py` | Known CVEs in detected JavaScript libraries |
+| `exposure_checks.py` | Sensitive file and directory exposure |
+| `zap_baseline.py` | **OWASP ZAP baseline scan integration** |
 
-1. **Executive Summary** — Risk totals (Critical / High / Medium / Low), 
-   confidence levels, and assessment scope
-2. **Remediation Action Plan** — Prioritized findings with suggested owners 
-   and target deadlines
-3. **Confirmed Security Findings** — Directly observed vulnerabilities with 
-   evidence records
-4. **Items Requiring Confirmation** — Observations needing human validation
-5. **Methodology and Limitations** — Testing boundaries and coverage notes
-6. **Appendix A: Technical Evidence** — Supporting observations
-7. **Appendix B: Passed & Protected Checks** — What passed clean
+---
 
-### Sample Report Output (aitd.ac.in)
+### 3. Source Scanners (`/source_scanners`) — 4 modules
+Static analysis on uploaded or repository source code.
+
+| Module | Purpose |
+|---|---|
+| `static_analysis.py` | SAST — static application security testing |
+| `dependency_inventory.py` | SCA — software composition analysis |
+| `dependency_advisories.py` | CVE matching against dependency versions |
+| `project_files.py` | Sensitive file detection in source (`.env`, keys) |
+
+---
+
+### 4. Services (`/services`) — 20 modules
+Scan orchestration, authenticated testing, and report generation.
+
+| Module | Purpose |
+|---|---|
+| `scan_engine.py` | Main scan orchestration and pipeline management |
+| `deep_scan_engine.py` | Deep scan coordination |
+| `source_scan_engine.py` | Source code scan pipeline |
+| `authenticated_crawl.py` | **Authenticated session crawling** |
+| `authenticated_security.py` | Security testing on login-protected pages |
+| `credential_vault.py` | Secure credential management for auth scans |
+| `login_session.py` | Login flow automation and session management |
+| `logout_invalidation.py` | Session invalidation and token expiry testing |
+| `object_access_control.py` | **BOLA / IDOR vulnerability testing** (OWASP API Top 10) |
+| `domain_verification.py` | Domain ownership verification |
+| `risk_engine.py` | Quantitative risk scoring engine |
+| `recommendation_engine.py` | Automated remediation guidance generation |
+| `fix_guidance.py` | Plain-English fix suggestions per finding |
+| `vulnerability_report.py` | PDF report generation |
+| `engagement_profile.py` | Scan scope and engagement configuration |
+| `subdomain_scope.py` | Subdomain inclusion/exclusion scoping |
+| `development_access.py` | Dev endpoint and staging exposure detection |
+| `protected_page.py` | Access control verification on protected routes |
+| `source_archive.py` | Source code archiving and version management |
+| `homepage_fetcher.py` | Initial homepage analysis and parsing |
+
+---
+
+## Report Output
+
+Each scan produces an **18-page professional PDF** containing:
+
+- **Executive Summary** — Risk totals by severity (Critical/High/Medium/Low), 
+  confidence levels, confirmed findings vs. items requiring validation
+- **Remediation Action Plan** — Prioritized table with suggested owners and deadlines
+- **Confirmed Security Findings** — Directly observed vulnerabilities with evidence
+- **Technical Evidence Appendix** — Supporting observations and scanner data
+- **Passed & Protected Checks** — Full audit trail of what passed
+
+### Example Output — aitd.ac.in
+
+> Scan type: Normal + Verified Deep Security Assessment  
+> Pages crawled: 25  
+> Scanners run: 80+
 
 | Severity | Count |
 |---|---|
@@ -63,32 +127,43 @@ Generates an **18-page professional PDF** containing:
 | 🟡 Medium | 11 |
 | 🔵 Low | 3 |
 
-**Findings included:** Clickjacking protection missing, CSP missing, 
-Obsolete TLS 1.0/1.1 enabled, CSRF protection review required, 
-Technology stack disclosure, TRACE method exposed, and more.
+**Key findings:** Obsolete TLS 1.0/1.1 enabled, missing HSTS/CSP/X-Frame headers, 
+CSRF review required, MySQL (3306) internet-accessible, TRACE method exposed, 
+technology stack disclosure.
 
 ---
 
-## 🚀 Tech Stack
+## Scan Modes
 
-- **Backend:** Python (FastAPI)
+| Mode | Description |
+|---|---|
+| **Normal Scan** | Surface scanners — passive, lightweight |
+| **Deep Scan** | Active verification + ZAP baseline + crawler + port scan |
+| **Authenticated Scan** | Deep scan on login-protected pages with session management |
+| **Source Scan** | SAST + SCA on uploaded source code or repository |
+
+---
+
+## Tech Stack
+
+- **Backend:** Python, FastAPI
 - **Frontend:** HTML, CSS, Vanilla JS
-- **Report Generation:** PDF with branded layout
-- **Scanners:** Custom-built Python scanner modules (80+ checks)
+- **DAST Integration:** OWASP ZAP
+- **Report Engine:** Custom PDF generation with professional layout
+- **Scanner Engine:** 53 custom Python modules across 4 layers
 
 ---
 
-## ⚙️ Run Locally
+## Run Locally
 
 ```bash
 git clone https://github.com/priyanshusinghsikarwar12-cs/web-risk-and-fix.git
 cd web-risk-and-fix
 
-# Backend
 cd backend
 pip install -r requirements.txt
 uvicorn main:app --reload
 
-# Frontend — open in browser
+# Frontend
 cd ../frontend
 python -m http.server 3000
